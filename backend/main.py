@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 
 from database.config import init_db, engine
+from api.users import router as users_router
 
 load_dotenv()
 
@@ -33,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register routers
+app.include_router(users_router)
 
 
 @app.get("/api/health")
