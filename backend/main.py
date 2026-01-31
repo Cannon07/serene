@@ -7,13 +7,15 @@ from sqlalchemy import text
 
 from database.config import init_db, engine
 from api.users import router as users_router
+from config.opik_config import init_opik
 
 load_dotenv()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database on startup."""
+    """Initialize Opik and database on startup."""
+    init_opik()
     await init_db()
     yield
 
