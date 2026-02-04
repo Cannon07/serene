@@ -126,3 +126,39 @@ class RoutePrepareResponse(BaseModel):
     checklist: list[str]
     stress_points_with_tips: list[StressPointWithTip]
     breathing_exercise: BreathingExercise
+
+
+# --- Intervention schemas ---
+
+
+class InterventionRequest(BaseModel):
+    user_id: str
+    drive_id: Optional[str] = None
+    stress_score: float = Field(ge=0, le=1)
+    stress_level: str = Field(pattern="^(LOW|MEDIUM|HIGH|CRITICAL)$")
+    current_location: Optional[dict] = None
+    context: Optional[str] = None
+
+
+class BreathingContent(BaseModel):
+    name: str
+    duration_seconds: int
+    instructions: list[str]
+    audio_script: Optional[str] = None
+
+
+class GroundingContent(BaseModel):
+    name: str
+    instructions: list[str]
+    audio_script: Optional[str] = None
+
+
+class InterventionResponse(BaseModel):
+    intervention_type: str
+    stress_level: str
+    stress_score: float
+    message: str
+    breathing_content: Optional[BreathingContent] = None
+    grounding_content: Optional[GroundingContent] = None
+    pull_over_guidance: Optional[list[str]] = None
+    sources: list[str] = Field(default_factory=list)

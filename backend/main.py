@@ -9,16 +9,25 @@ from database.config import init_db, engine
 from api.users import router as users_router
 from api.routes import router as routes_router
 from api.emotion import router as emotion_router
+from api.intervention import router as intervention_router
 from config.opik_config import init_opik
+from services.rag_service import RAGService
 
 load_dotenv()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize Opik and database on startup."""
+    """Initialize Opik, database, and RAG service on startup."""
     init_opik()
     await init_db()
+    # Initialize RAG service (loads knowledge base) - non-blocking
+    try:
+        rag_service = RAGService.get_instance()
+        await rag_service.initialize()
+    except Exception as e:
+        print(f"Warning: RAG service initialization failed: {e}")
+        print("Calm Agent features will be limited until OpenAI API is configured.")
     yield
 
 
@@ -43,6 +52,7 @@ app.add_middleware(
 app.include_router(users_router)
 app.include_router(routes_router)
 app.include_router(emotion_router)
+app.include_router(intervention_router)
 
 
 @app.get("/api/health")

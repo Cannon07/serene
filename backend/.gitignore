@@ -128,6 +128,7 @@ log/
 chroma_data/
 .chroma/
 chromadb/
+knowledge_base/embeddings/
 
 # =========================
 # Uploads / Temp Files
