@@ -70,3 +70,59 @@ class UserStats(BaseModel):
     reroute_acceptance_rate: Optional[float]
     drives_this_week: int
     current_streak: int
+
+
+# --- Route Planning schemas ---
+
+
+class RoutePlanRequest(BaseModel):
+    user_id: str
+    origin: str = Field(min_length=1)
+    destination: str = Field(min_length=1)
+    departure_time: Optional[datetime] = None
+
+
+class RoutePrepareRequest(BaseModel):
+    user_id: str
+    route_id: str
+
+
+class StressPointResponse(BaseModel):
+    location: str
+    type: str
+    severity: str
+
+
+class RouteResponse(BaseModel):
+    id: str
+    name: str
+    duration_minutes: int
+    distance_km: float
+    calm_score: int
+    stress_level: str
+    is_recommended: bool
+    stress_points: list[StressPointResponse]
+    polyline: str
+
+
+class RoutePlanResponse(BaseModel):
+    routes: list[RouteResponse]
+
+
+class StressPointWithTip(BaseModel):
+    location: str
+    type: str
+    severity: str
+    tip: str
+
+
+class BreathingExercise(BaseModel):
+    name: str
+    duration_seconds: int
+    instructions: list[str]
+
+
+class RoutePrepareResponse(BaseModel):
+    checklist: list[str]
+    stress_points_with_tips: list[StressPointWithTip]
+    breathing_exercise: BreathingExercise

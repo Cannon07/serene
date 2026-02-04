@@ -4,8 +4,6 @@ from datetime import datetime
 
 import httpx
 
-GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
-
 # New API endpoints
 ROUTES_API_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 PLACES_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"
@@ -14,6 +12,11 @@ PLACES_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"
 class MapsServiceError(Exception):
     """Raised when Google Maps API returns an error."""
     pass
+
+
+def _get_api_key() -> str | None:
+    """Get API key at runtime (after load_dotenv has been called)."""
+    return os.getenv("GOOGLE_MAPS_API_KEY")
 
 
 async def get_routes(
@@ -37,7 +40,8 @@ async def get_routes(
     Raises:
         MapsServiceError: If API key is missing or API returns an error
     """
-    if not GOOGLE_MAPS_API_KEY:
+    api_key = _get_api_key()
+    if not api_key:
         raise MapsServiceError("GOOGLE_MAPS_API_KEY not configured")
 
     # Build request body
@@ -58,7 +62,7 @@ async def get_routes(
     # Headers for Routes API
     headers = {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+        "X-Goog-Api-Key": api_key,
         "X-Goog-FieldMask": (
             "routes.description,"
             "routes.duration,"
@@ -232,7 +236,8 @@ async def get_place_autocomplete(
     Raises:
         MapsServiceError: If API key is missing or API returns an error
     """
-    if not GOOGLE_MAPS_API_KEY:
+    api_key = _get_api_key()
+    if not api_key:
         raise MapsServiceError("GOOGLE_MAPS_API_KEY not configured")
 
     # Build request body
@@ -252,7 +257,7 @@ async def get_place_autocomplete(
 
     headers = {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+        "X-Goog-Api-Key": api_key,
     }
 
     async with httpx.AsyncClient() as client:
