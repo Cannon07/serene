@@ -8,6 +8,7 @@ from sqlalchemy import text
 from database.config import init_db, engine
 from api.users import router as users_router
 from api.routes import router as routes_router
+from api.emotion import router as emotion_router
 from config.opik_config import init_opik
 
 load_dotenv()
@@ -41,6 +42,7 @@ app.add_middleware(
 # Register routers
 app.include_router(users_router)
 app.include_router(routes_router)
+app.include_router(emotion_router)
 
 
 @app.get("/api/health")

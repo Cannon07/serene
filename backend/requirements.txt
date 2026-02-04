@@ -6,3 +6,4 @@ aiosqlite
 httpx
 opik
 hume
+python-multipart
