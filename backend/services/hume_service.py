@@ -8,6 +8,7 @@ import tempfile
 from typing import Optional
 
 from hume import AsyncHumeClient
+from opik import track
 
 
 class HumeServiceError(Exception):
@@ -120,6 +121,7 @@ def _extract_emotions_from_predictions(predictions, model_type: str) -> dict:
     return emotions
 
 
+@track(name="HumeService.analyze_video")
 async def analyze_video(video_bytes: bytes, filename: str = "video.mp4") -> dict:
     """
     Analyze facial expressions from video using Hume Face model.
@@ -178,6 +180,7 @@ async def analyze_video(video_bytes: bytes, filename: str = "video.mp4") -> dict
             os.unlink(tmp_path)
 
 
+@track(name="HumeService.analyze_audio")
 async def analyze_audio(audio_bytes: bytes, filename: str = "audio.wav") -> dict:
     """
     Analyze speech prosody from audio using Hume Prosody model.
@@ -238,6 +241,7 @@ async def analyze_audio(audio_bytes: bytes, filename: str = "audio.wav") -> dict
             os.unlink(tmp_path)
 
 
+@track(name="HumeService.extract_stress_score")
 def extract_stress_score(emotions: dict) -> float:
     """
     Convert emotions to a 0-1 stress score using PRD formula.

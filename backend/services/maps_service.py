@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime
 
 import httpx
+from opik import track
 
 # New API endpoints
 ROUTES_API_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
@@ -50,6 +51,7 @@ def _parse_location(location: str) -> dict:
         return {"address": location}
 
 
+@track(name="MapsService.get_routes")
 async def get_routes(
     origin: str,
     destination: str,
@@ -248,6 +250,7 @@ def _format_distance(meters: int) -> str:
     return f"{km:.1f} km"
 
 
+@track(name="MapsService.get_place_autocomplete")
 async def get_place_autocomplete(
     query: str,
     location: Optional[dict] = None,
