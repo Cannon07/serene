@@ -1,6 +1,7 @@
 """
 Intervention API endpoints for calming interventions.
 """
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -8,15 +9,17 @@ from sqlalchemy.orm import selectinload
 
 from database.config import get_db
 from models.database import User, UserCalmingPreference
-from models.schemas import InterventionRequest, InterventionResponse
+from models.schemas import InterventionRequest, InterventionResponse, RerouteOptionBrief
 from agents.calm_agent import CalmAgent
+from agents.reroute_agent import RerouteAgent
 from agents.emotion_agent import InterventionType
 
 
 router = APIRouter(prefix="/api/intervention", tags=["intervention"])
 
-# Agent singleton
+# Agent singletons
 _calm_agent = CalmAgent()
+_reroute_agent = RerouteAgent()
 
 
 def _determine_intervention_type(stress_score: float) -> str:
@@ -48,11 +51,76 @@ async def _get_user_preferences(
 
     return [
         {
-            "preference": pref.preference.value,
+            # Handle both enum and string values
+            "preference": pref.preference.value if hasattr(pref.preference, 'value') else pref.preference,
             "effectiveness": pref.effectiveness,
         }
         for pref in user.calming_preferences
     ]
+
+
+async def _get_user_triggers(
+    user_id: str,
+    db: AsyncSession
+) -> list[dict]:
+    """Fetch user stress triggers from database."""
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.stress_triggers))
+        .where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        return []
+
+    return [
+        {
+            # Handle both enum and string values
+            "trigger": trigger.trigger.value if hasattr(trigger.trigger, 'value') else trigger.trigger,
+            "severity": trigger.severity,
+        }
+        for trigger in user.stress_triggers
+    ]
+
+
+async def _check_reroute_option(
+    current_location: Optional[dict],
+    destination: Optional[str],
+    current_calm_score: Optional[int],
+    user_triggers: list[dict],
+    stress_score: float,
+) -> Optional[RerouteOptionBrief]:
+    """Check if a calmer reroute is available."""
+    # Need location and destination to check reroute
+    if not current_location or not destination:
+        return None
+
+    # Only check reroute for high stress
+    if stress_score < 0.6:
+        return None
+
+    try:
+        result = await _reroute_agent.find_calmer_route(
+            current_location=current_location,
+            destination=destination,
+            current_calm_score=current_calm_score,
+            user_triggers=user_triggers,
+        )
+
+        if result.get("reroute_available") and result.get("suggested_route"):
+            sr = result["suggested_route"]
+            return RerouteOptionBrief(
+                current_route_calm_score=current_calm_score or result.get("current_route", {}).get("calm_score", 0),
+                alternative_route_name=sr.get("name", "Calmer Route"),
+                alternative_route_calm_score=sr.get("calm_score", 0),
+                extra_time_minutes=sr.get("extra_time_minutes", 0),
+                maps_url=sr.get("maps_url", ""),
+            )
+    except Exception as e:
+        print(f"Error checking reroute: {e}")
+
+    return None
 
 
 @router.post("/decide", response_model=InterventionResponse)
@@ -70,6 +138,7 @@ async def decide_intervention(
     - > 0.8: Pull over suggestion with grounding
 
     User preferences are used to personalize the intervention.
+    If current_location and destination are provided, also checks for calmer reroute options.
     """
     # Determine intervention type
     intervention_type = _determine_intervention_type(request.stress_score)
@@ -80,11 +149,24 @@ async def decide_intervention(
             stress_level=request.stress_level,
             stress_score=request.stress_score,
             message="You're doing great! Keep driving calmly.",
+            reroute_available=False,
             sources=[],
         )
 
-    # Get user preferences for personalization
+    # Get user preferences and triggers for personalization
     user_preferences = await _get_user_preferences(request.user_id, db)
+    user_triggers = await _get_user_triggers(request.user_id, db)
+
+    # Check for reroute option if location and destination provided
+    reroute_option = None
+    if request.current_location and request.destination:
+        reroute_option = await _check_reroute_option(
+            current_location=request.current_location,
+            destination=request.destination,
+            current_calm_score=request.current_route_calm_score,
+            user_triggers=user_triggers,
+            stress_score=request.stress_score,
+        )
 
     # Generate intervention using CalmAgent
     try:
@@ -104,6 +186,8 @@ async def decide_intervention(
             breathing_content=result.get("breathing_content"),
             grounding_content=result.get("grounding_content"),
             pull_over_guidance=result.get("pull_over_guidance"),
+            reroute_available=reroute_option is not None,
+            reroute_option=reroute_option,
             sources=result.get("sources", []),
         )
 

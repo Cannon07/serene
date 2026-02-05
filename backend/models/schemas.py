@@ -103,6 +103,7 @@ class RouteResponse(BaseModel):
     is_recommended: bool
     stress_points: list[StressPointResponse]
     polyline: str
+    maps_url: Optional[str] = None  # Google Maps deep link
 
 
 class RoutePlanResponse(BaseModel):
@@ -136,7 +137,9 @@ class InterventionRequest(BaseModel):
     drive_id: Optional[str] = None
     stress_score: float = Field(ge=0, le=1)
     stress_level: str = Field(pattern="^(LOW|MEDIUM|HIGH|CRITICAL)$")
-    current_location: Optional[dict] = None
+    current_location: Optional[dict] = None  # {"latitude": x, "longitude": y}
+    destination: Optional[str] = None  # For reroute suggestions
+    current_route_calm_score: Optional[int] = None  # For reroute comparison
     context: Optional[str] = None
 
 
@@ -153,6 +156,15 @@ class GroundingContent(BaseModel):
     audio_script: Optional[str] = None
 
 
+class RerouteOptionBrief(BaseModel):
+    """Brief reroute option for intervention response."""
+    current_route_calm_score: int
+    alternative_route_name: str
+    alternative_route_calm_score: int
+    extra_time_minutes: int
+    maps_url: str
+
+
 class InterventionResponse(BaseModel):
     intervention_type: str
     stress_level: str
@@ -161,4 +173,40 @@ class InterventionResponse(BaseModel):
     breathing_content: Optional[BreathingContent] = None
     grounding_content: Optional[GroundingContent] = None
     pull_over_guidance: Optional[list[str]] = None
+    reroute_available: bool = False
+    reroute_option: Optional[RerouteOptionBrief] = None
     sources: list[str] = Field(default_factory=list)
+
+
+# --- Reroute schemas ---
+
+
+class Location(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class RerouteRequest(BaseModel):
+    user_id: str
+    current_location: Location
+    destination: str
+    current_route_calm_score: Optional[int] = None  # For comparison
+
+
+class RerouteOption(BaseModel):
+    name: str
+    calm_score: int
+    stress_level: str
+    duration_minutes: int
+    distance_km: float
+    extra_time_minutes: int  # Compared to fastest route
+    calm_score_improvement: int  # Compared to current route
+    maps_url: str  # Google Maps deep link
+    stress_points: list[StressPointResponse]
+
+
+class RerouteResponse(BaseModel):
+    reroute_available: bool
+    message: str
+    current_route: Optional[dict] = None
+    suggested_route: Optional[RerouteOption] = None

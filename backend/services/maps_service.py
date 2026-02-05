@@ -19,6 +19,37 @@ def _get_api_key() -> str | None:
     return os.getenv("GOOGLE_MAPS_API_KEY")
 
 
+def _parse_location(location: str) -> dict:
+    """
+    Parse a location string into the appropriate Routes API format.
+
+    Args:
+        location: Either an address string or coordinates "lat,lng"
+
+    Returns:
+        Dict in Routes API format: {"address": ...} or {"location": {"latLng": {...}}}
+    """
+    import re
+
+    # Check if it's a coordinate string (e.g., "18.5074,73.8077" or "18.5074, 73.8077")
+    coord_pattern = r'^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$'
+    match = re.match(coord_pattern, location.strip())
+
+    if match:
+        lat = float(match.group(1))
+        lng = float(match.group(2))
+        return {
+            "location": {
+                "latLng": {
+                    "latitude": lat,
+                    "longitude": lng
+                }
+            }
+        }
+    else:
+        return {"address": location}
+
+
 async def get_routes(
     origin: str,
     destination: str,
@@ -44,10 +75,10 @@ async def get_routes(
     if not api_key:
         raise MapsServiceError("GOOGLE_MAPS_API_KEY not configured")
 
-    # Build request body
+    # Build request body - parse locations to handle both addresses and coordinates
     request_body = {
-        "origin": {"address": origin},
-        "destination": {"address": destination},
+        "origin": _parse_location(origin),
+        "destination": _parse_location(destination),
         "travelMode": "DRIVE",
         "routingPreference": "TRAFFIC_AWARE",
         "computeAlternativeRoutes": alternatives,
@@ -288,3 +319,57 @@ async def get_place_autocomplete(
             })
 
     return predictions
+
+
+def generate_maps_deep_link(
+    origin: str | dict,
+    destination: str | dict,
+    waypoints: list[str | dict] = None,
+) -> str:
+    """
+    Generate a Google Maps deep link for directions.
+
+    Args:
+        origin: Starting point (address string or {"latitude": x, "longitude": y})
+        destination: End point (address string or {"latitude": x, "longitude": y})
+        waypoints: Optional list of waypoints
+
+    Returns:
+        Google Maps URL that opens directions in Google Maps app/web
+    """
+    import urllib.parse
+
+    base_url = "https://www.google.com/maps/dir/"
+
+    # Format origin
+    if isinstance(origin, dict):
+        origin_str = f"{origin['latitude']},{origin['longitude']}"
+    else:
+        origin_str = urllib.parse.quote(origin)
+
+    # Format destination
+    if isinstance(destination, dict):
+        dest_str = f"{destination['latitude']},{destination['longitude']}"
+    else:
+        dest_str = urllib.parse.quote(destination)
+
+    # Build URL with parameters
+    params = {
+        "api": "1",
+        "origin": origin_str if isinstance(origin, dict) else origin,
+        "destination": dest_str if isinstance(destination, dict) else destination,
+        "travelmode": "driving",
+    }
+
+    # Add waypoints if provided
+    if waypoints:
+        wp_strs = []
+        for wp in waypoints:
+            if isinstance(wp, dict):
+                wp_strs.append(f"{wp['latitude']},{wp['longitude']}")
+            else:
+                wp_strs.append(wp)
+        params["waypoints"] = "|".join(wp_strs)
+
+    query_string = urllib.parse.urlencode(params)
+    return f"{base_url}?{query_string}"
