@@ -11,6 +11,8 @@ from api.routes import router as routes_router
 from api.emotion import router as emotion_router
 from api.intervention import router as intervention_router
 from api.voice import router as voice_router
+from api.debrief import router as debrief_router
+from api.drives import router as drives_router, user_drives_router
 from config.opik_config import init_opik
 from services.rag_service import RAGService
 
@@ -55,6 +57,9 @@ app.include_router(routes_router)
 app.include_router(emotion_router)
 app.include_router(intervention_router)
 app.include_router(voice_router)
+app.include_router(debrief_router)
+app.include_router(drives_router)
+app.include_router(user_drives_router)
 
 
 @app.get("/api/health")

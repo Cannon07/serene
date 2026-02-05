@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database.config import get_db
-from models.database import User
+from models.database import User, Drive, DriveEvent
+from models.enums import EventType
 from models.schemas import (
     RoutePlanRequest,
     RoutePlanResponse,
@@ -266,6 +267,8 @@ async def find_reroute(request: RerouteRequest, db: AsyncSession = Depends(get_d
     significantly calmer (+20 calm score improvement).
 
     Returns Google Maps deep link for easy navigation to the new route.
+
+    If drive_id is provided, records REROUTE_OFFERED event when a reroute is available.
     """
     # 1. Fetch user with stress triggers for personalization
     user = await _get_user_with_preferences(db, request.user_id)
@@ -275,7 +278,18 @@ async def find_reroute(request: RerouteRequest, db: AsyncSession = Depends(get_d
         for t in user.stress_triggers
     ]
 
-    # 2. Find calmer route using RerouteAgent
+    # 2. Validate drive if drive_id provided
+    drive = None
+    if request.drive_id:
+        drive_result = await db.execute(
+            select(Drive).where(Drive.id == request.drive_id)
+        )
+        drive = drive_result.scalar_one_or_none()
+        # Only use drive if it exists, belongs to user, and is active
+        if drive and (drive.user_id != request.user_id or drive.completed_at):
+            drive = None
+
+    # 3. Find calmer route using RerouteAgent
     current_location = {
         "latitude": request.current_location.latitude,
         "longitude": request.current_location.longitude,
@@ -288,7 +302,7 @@ async def find_reroute(request: RerouteRequest, db: AsyncSession = Depends(get_d
         user_triggers=user_triggers,
     )
 
-    # 3. Build response
+    # 4. Build response
     suggested_route = None
     if result.get("suggested_route"):
         sr = result["suggested_route"]
@@ -310,6 +324,23 @@ async def find_reroute(request: RerouteRequest, db: AsyncSession = Depends(get_d
                 for sp in sr.get("stress_points", [])
             ],
         )
+
+    # 5. Record REROUTE_OFFERED event if drive_id provided and reroute available
+    if drive and result.get("reroute_available"):
+        event = DriveEvent(
+            drive_id=drive.id,
+            event_type=EventType.REROUTE_OFFERED.value,
+            details={
+                "route_name": suggested_route.name if suggested_route else None,
+                "calm_score_improvement": suggested_route.calm_score_improvement if suggested_route else None,
+                "extra_time_minutes": suggested_route.extra_time_minutes if suggested_route else None,
+            },
+        )
+        db.add(event)
+
+        # Increment reroutes_offered counter
+        drive.reroutes_offered += 1
+        await db.commit()
 
     return RerouteResponse(
         reroute_available=result.get("reroute_available", False),

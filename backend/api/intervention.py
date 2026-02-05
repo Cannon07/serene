@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from database.config import get_db
-from models.database import User, UserCalmingPreference
+from models.database import User, UserCalmingPreference, Drive, DriveEvent
+from models.enums import EventType
 from models.schemas import InterventionRequest, InterventionResponse, RerouteOptionBrief
 from agents.calm_agent import CalmAgent
 from agents.reroute_agent import RerouteAgent
@@ -140,6 +141,26 @@ async def decide_intervention(
     User preferences are used to personalize the intervention.
     If current_location and destination are provided, also checks for calmer reroute options.
     """
+    # Validate user exists
+    user_result = await db.execute(select(User).where(User.id == request.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Validate drive ownership if drive_id provided
+    drive = None
+    if request.drive_id:
+        drive_result = await db.execute(
+            select(Drive).where(Drive.id == request.drive_id)
+        )
+        drive = drive_result.scalar_one_or_none()
+        if not drive:
+            raise HTTPException(status_code=404, detail="Drive not found")
+        if drive.user_id != request.user_id:
+            raise HTTPException(status_code=403, detail="Drive does not belong to this user")
+        if drive.completed_at:
+            raise HTTPException(status_code=400, detail="Cannot record events on a completed drive")
+
     # Determine intervention type
     intervention_type = _determine_intervention_type(request.stress_score)
 
@@ -177,6 +198,24 @@ async def decide_intervention(
             user_preferences=user_preferences,
             context=request.context,
         )
+
+        # If drive_id provided, record INTERVENTION event and increment counter
+        if drive:
+            event = DriveEvent(
+                drive_id=request.drive_id,
+                event_type=EventType.INTERVENTION.value,
+                stress_level=request.stress_score,
+                details={
+                    "intervention_type": result["intervention_type"],
+                    "stress_level_category": result["stress_level"],
+                    "reroute_offered": reroute_option is not None,
+                },
+            )
+            db.add(event)
+
+            # Increment interventions_triggered counter
+            drive.interventions_triggered += 1
+            await db.commit()
 
         return InterventionResponse(
             intervention_type=result["intervention_type"],

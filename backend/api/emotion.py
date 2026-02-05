@@ -1,9 +1,14 @@
 """
 Emotion API endpoints for video and audio analysis.
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from typing import Optional
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
+from database.config import get_db
+from models.database import Drive, DriveEvent
+from models.enums import EventType
 from agents.emotion_agent import EmotionAgent
 
 
@@ -50,11 +55,15 @@ async def analyze_video(
 @router.post("/audio")
 async def analyze_audio(
     file: UploadFile = File(..., description="Audio file for emotion analysis"),
+    drive_id: Optional[str] = Form(default=None, description="Drive ID to record event"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Analyze audio for emotions (during drive monitoring).
 
     Returns stress score, stress level, and intervention decision.
+
+    If drive_id is provided, records a STRESS_DETECTED event on the drive.
     """
     # Read audio bytes
     audio_bytes = await file.read()
@@ -67,6 +76,29 @@ async def analyze_audio(
             audio_bytes=audio_bytes,
             filename=file.filename or "audio.wav",
         )
+
+        # If drive_id provided, record STRESS_DETECTED event
+        if drive_id:
+            drive_result = await db.execute(
+                select(Drive).where(Drive.id == drive_id)
+            )
+            drive = drive_result.scalar_one_or_none()
+
+            # Only record if drive exists and is active (not completed)
+            if drive and not drive.completed_at:
+                event = DriveEvent(
+                    drive_id=drive_id,
+                    event_type=EventType.STRESS_DETECTED.value,
+                    stress_level=result["stress_score"],
+                    details={
+                        "stress_level_category": result["stress_level"],
+                        "trigger_intervention": result["trigger_intervention"],
+                        "intervention_type": result.get("intervention_type"),
+                    },
+                )
+                db.add(event)
+                await db.commit()
+
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

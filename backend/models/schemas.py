@@ -191,6 +191,7 @@ class RerouteRequest(BaseModel):
     current_location: Location
     destination: str
     current_route_calm_score: Optional[int] = None  # For comparison
+    drive_id: Optional[str] = None  # For event recording
 
 
 class RerouteOption(BaseModel):
@@ -234,3 +235,126 @@ class VoiceCommandResponse(BaseModel):
     intervention: Optional[dict] = None  # Intervention details if triggered
     reroute: Optional[dict] = None  # Reroute details if available
     eta_info: Optional[dict] = None  # ETA information if requested
+
+
+# --- Debrief schemas ---
+
+
+class DebriefRequest(BaseModel):
+    user_id: str
+    drive_id: str
+    post_drive_stress_score: Optional[float] = Field(default=None, ge=0, le=1)
+
+
+class EmotionalJourney(BaseModel):
+    pre_drive: dict  # {"stress": float, "level": str}
+    post_drive: dict  # {"stress": float, "level": str}
+    improvement: float
+
+
+class DebriefResponse(BaseModel):
+    emotional_journey: EmotionalJourney
+    learnings: list[str]
+    profile_updates: list[str]
+    encouragement: str
+
+
+# --- Drive schemas ---
+
+
+class DriveStartRequest(BaseModel):
+    user_id: str
+    origin: str = Field(min_length=1, max_length=255)
+    destination: str = Field(min_length=1, max_length=255)
+    selected_route_type: str = Field(pattern="^(FASTEST|CALMEST)$")
+    pre_drive_stress: Optional[float] = Field(default=None, ge=0, le=1)
+
+
+class DriveStartResponse(BaseModel):
+    id: str
+    user_id: str
+    started_at: datetime
+    origin: str
+    destination: str
+    selected_route_type: str
+    pre_drive_stress: Optional[float]
+    status: str  # IN_PROGRESS or COMPLETED
+
+
+class DriveEventResponse(BaseModel):
+    id: str
+    timestamp: datetime
+    event_type: str
+    stress_level: Optional[float]
+    details: Optional[dict]
+
+
+class DriveDetailResponse(BaseModel):
+    id: str
+    user_id: str
+    started_at: datetime
+    completed_at: Optional[datetime]
+    origin: str
+    destination: str
+    selected_route_type: str
+    pre_drive_stress: Optional[float]
+    post_drive_stress: Optional[float]
+    interventions_triggered: int
+    reroutes_offered: int
+    reroutes_accepted: int
+    rating: Optional[int]
+    events: list[DriveEventResponse]
+
+
+class DriveSummary(BaseModel):
+    events_count: int
+    interventions_triggered: int
+    reroutes_offered: int
+    reroutes_accepted: int
+    avg_stress_level: Optional[float]
+
+
+class DriveEndResponse(BaseModel):
+    id: str
+    completed_at: datetime
+    duration_minutes: int
+    summary: DriveSummary
+
+
+class ActiveDriveResponse(BaseModel):
+    id: str
+    started_at: datetime
+    origin: str
+    destination: str
+    selected_route_type: str
+    pre_drive_stress: Optional[float]
+    events_count: int
+    latest_stress_level: Optional[float]
+
+
+class DriveListItem(BaseModel):
+    id: str
+    started_at: datetime
+    completed_at: Optional[datetime]
+    origin: str
+    destination: str
+    pre_drive_stress: Optional[float]
+    post_drive_stress: Optional[float]
+    rating: Optional[int]
+
+
+class DriveListResponse(BaseModel):
+    drives: list[DriveListItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class AcceptRerouteRequest(BaseModel):
+    route_name: str = Field(min_length=1)
+    calm_score_improvement: Optional[int] = None
+
+
+class AcceptRerouteResponse(BaseModel):
+    success: bool
+    reroutes_accepted: int

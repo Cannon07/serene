@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from datetime import datetime
 from database.config import get_db
-from models.database import User, Drive
+from models.database import User, Drive, DriveEvent
+from models.enums import EventType
 from models.schemas import VoiceCommandRequest, VoiceCommandResponse
 from agents.calm_agent import CalmAgent
 from agents.reroute_agent import RerouteAgent
@@ -104,6 +106,60 @@ async def _validate_user(user_id: str, db: AsyncSession) -> bool:
         select(User).where(User.id == user_id)
     )
     return result.scalar_one_or_none() is not None
+
+
+async def _validate_and_get_drive(
+    drive_id: str, user_id: str, db: AsyncSession
+) -> Drive | None:
+    """Validate drive exists, belongs to user, and is active. Returns drive or None."""
+    result = await db.execute(
+        select(Drive).where(Drive.id == drive_id)
+    )
+    drive = result.scalar_one_or_none()
+
+    if not drive:
+        return None
+    if drive.user_id != user_id:
+        return None
+    if drive.completed_at:
+        return None
+
+    return drive
+
+
+async def _record_voice_command_event(
+    drive: Drive,
+    command_type: str,
+    transcribed_text: str,
+    db: AsyncSession,
+) -> None:
+    """Record a VOICE_COMMAND event on the drive."""
+    event = DriveEvent(
+        drive_id=drive.id,
+        event_type=EventType.VOICE_COMMAND.value,
+        details={
+            "command_type": command_type,
+            "transcribed_text": transcribed_text,
+        },
+    )
+    db.add(event)
+
+
+async def _record_pull_over_event(
+    drive: Drive,
+    location: dict | None,
+    db: AsyncSession,
+) -> None:
+    """Record a PULL_OVER_REQUESTED event on the drive."""
+    event = DriveEvent(
+        drive_id=drive.id,
+        event_type=EventType.PULL_OVER_REQUESTED.value,
+        stress_level=0.85,  # Assumed critical stress
+        details={
+            "location": location,
+        },
+    )
+    db.add(event)
 
 
 async def _get_user_preferences(user_id: str, db: AsyncSession) -> list[dict]:
@@ -286,13 +342,34 @@ async def _handle_eta_update(
 async def _handle_end_drive(
     request: VoiceCommandRequest,
     db: AsyncSession,
+    drive: Drive | None,
 ) -> VoiceCommandResponse:
-    """Handle end drive command - initiate post-drive flow."""
+    """Handle end drive command - end the drive and initiate post-drive flow."""
+    drive_summary = None
+
+    # If we have a valid drive, end it
+    if drive:
+        drive.completed_at = datetime.utcnow()
+
+        # Calculate summary
+        duration = drive.completed_at - drive.started_at
+        duration_minutes = int(duration.total_seconds() / 60)
+
+        drive_summary = {
+            "drive_id": drive.id,
+            "completed_at": drive.completed_at.isoformat(),
+            "duration_minutes": duration_minutes,
+            "interventions_triggered": drive.interventions_triggered,
+            "reroutes_offered": drive.reroutes_offered,
+            "reroutes_accepted": drive.reroutes_accepted,
+        }
+
     return VoiceCommandResponse(
         understood=True,
         command_type="END_DRIVE",
         action="START_DEBRIEF",
         speech_response=SPEECH_RESPONSES["END_DRIVE_CONFIRMED"],
+        eta_info=drive_summary,  # Reusing eta_info field for drive summary
     )
 
 
@@ -313,36 +390,57 @@ async def process_voice_command(
     - "I need to pull over" → Provide pull-over guidance
     - "How much longer" → ETA update
     - "End drive" → Start post-drive debrief
+
+    If drive_id is provided, records VOICE_COMMAND events on the drive.
     """
     # Validate user exists
     user_exists = await _validate_user(request.user_id, db)
     if not user_exists:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Validate and get drive if drive_id provided
+    drive = None
+    if request.drive_id:
+        drive = await _validate_and_get_drive(request.drive_id, request.user_id, db)
+        # Note: We don't raise an error if drive is invalid - just skip event recording
+
     # Detect command type
     command_type, confidence = _detect_command_type(request.transcribed_text)
 
+    # Record VOICE_COMMAND event if we have a valid drive
+    if drive and command_type != "UNKNOWN":
+        await _record_voice_command_event(drive, command_type, request.transcribed_text, db)
+
     # Route to appropriate handler
     if command_type == "STRESS_REPORT":
-        return await _handle_stress_report(request, db)
+        response = await _handle_stress_report(request, db)
 
     elif command_type == "REROUTE":
-        return await _handle_reroute(request, db)
+        response = await _handle_reroute(request, db)
 
     elif command_type == "PULL_OVER":
-        return await _handle_pull_over(request, db)
+        response = await _handle_pull_over(request, db)
+        # Also record PULL_OVER_REQUESTED event
+        if drive:
+            await _record_pull_over_event(drive, request.current_location, db)
 
     elif command_type == "ETA_UPDATE":
-        return await _handle_eta_update(request, db)
+        response = await _handle_eta_update(request, db)
 
     elif command_type == "END_DRIVE":
-        return await _handle_end_drive(request, db)
+        response = await _handle_end_drive(request, db, drive)
 
     else:
         # Command not understood
-        return VoiceCommandResponse(
+        response = VoiceCommandResponse(
             understood=False,
             command_type="UNKNOWN",
             action="NONE",
             speech_response=SPEECH_RESPONSES["NOT_UNDERSTOOD"],
         )
+
+    # Commit all events and drive changes
+    if drive:
+        await db.commit()
+
+    return response
