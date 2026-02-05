@@ -210,3 +210,27 @@ class RerouteResponse(BaseModel):
     message: str
     current_route: Optional[dict] = None
     suggested_route: Optional[RerouteOption] = None
+
+
+# --- Voice Command schemas ---
+
+
+class VoiceCommandRequest(BaseModel):
+    user_id: str
+    drive_id: Optional[str] = None
+    transcribed_text: str = Field(min_length=1)
+    context: str = Field(default="DURING_DRIVE", pattern="^(PRE_DRIVE|DURING_DRIVE|POST_DRIVE)$")
+    # Optional location for reroute/pull-over commands
+    current_location: Optional[dict] = None  # {"latitude": x, "longitude": y}
+    destination: Optional[str] = None
+    current_route_calm_score: Optional[int] = None
+
+
+class VoiceCommandResponse(BaseModel):
+    understood: bool
+    command_type: str  # STRESS_REPORT, REROUTE, PULL_OVER, ETA_UPDATE, END_DRIVE, UNKNOWN
+    action: str  # TRIGGER_INTERVENTION, FIND_ROUTE, FIND_SAFE_SPOT, PROVIDE_ETA, START_DEBRIEF, NONE
+    speech_response: str  # Text-to-speech friendly response
+    intervention: Optional[dict] = None  # Intervention details if triggered
+    reroute: Optional[dict] = None  # Reroute details if available
+    eta_info: Optional[dict] = None  # ETA information if requested
