@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from sqlalchemy import text
+from sqlalchemy import inspect as sa_inspect
 
 from database.config import init_db, engine
 from api.users import router as users_router
@@ -73,8 +73,7 @@ async def health_check():
 async def list_tables():
     """List all database tables (dev only)."""
     async with engine.connect() as conn:
-        result = await conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = await conn.run_sync(
+            lambda sync_conn: sa_inspect(sync_conn).get_table_names()
         )
-        tables = [row[0] for row in result.fetchall()]
     return {"tables": tables}
