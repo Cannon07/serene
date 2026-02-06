@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   MapPin,
@@ -12,9 +12,15 @@ import {
   Clock,
   ArrowRight,
   Loader2,
+  AlertCircle,
 } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { useRequireUser } from "@/hooks/useRequireUser"
+import { useDriveStore } from "@/stores/driveStore"
+import { routeService } from "@/services/routeService"
+import { driveService } from "@/services/driveService"
+import type { DriveListItem } from "@/types/drive"
 
 const FREQUENT_PLACES = [
   { icon: Building2, label: "Work" },
@@ -22,30 +28,63 @@ const FREQUENT_PLACES = [
   { icon: ShoppingCart, label: "Mall" },
 ]
 
-const SUGGESTIONS = [
-  { name: "Phoenix Mall", address: "Whitefield, Bangalore" },
-  { name: "Phoenix Marketcity", address: "Mahadevapura, Bangalore" },
-  { name: "Phoenix Arena", address: "Koramangala, Bangalore" },
-  { name: "Phoenix Tower", address: "MG Road, Bangalore" },
-]
-
 export function PlanTripContent() {
   const router = useRouter()
-  const { isLoading } = useRequireUser()
+  const searchParams = useSearchParams()
+  const { user, isLoading: authLoading } = useRequireUser()
+  const { setOrigin, setDestination, setRoutes } = useDriveStore()
+
   const [from, setFrom] = useState("Current Location")
   const [to, setTo] = useState("")
   const [isToFocused, setIsToFocused] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [recentDestinations, setRecentDestinations] = useState<
+    { destination: string; startedAt: string }[]
+  >([])
   const toInputRef = useRef<HTMLInputElement>(null)
 
-  const filteredSuggestions = to.length > 0
-    ? SUGGESTIONS.filter(
-        (s) =>
-          s.name.toLowerCase().includes(to.toLowerCase()) ||
-          s.address.toLowerCase().includes(to.toLowerCase())
-      )
-    : []
+  // Pre-fill destination from query param
+  useEffect(() => {
+    const dest = searchParams.get("destination")
+    if (dest) setTo(dest)
+  }, [searchParams])
 
-  const showSuggestions = isToFocused && to.length > 0 && filteredSuggestions.length > 0
+  // Fetch recent destinations from drive history
+  useEffect(() => {
+    if (!user) return
+
+    driveService.getHistory(user.id, 10).then((res) => {
+      // Extract unique destinations, most recent first
+      const seen = new Set<string>()
+      const unique: { destination: string; startedAt: string }[] = []
+      for (const drive of res.drives) {
+        const key = drive.destination.toLowerCase()
+        if (!seen.has(key)) {
+          seen.add(key)
+          unique.push({
+            destination: drive.destination,
+            startedAt: drive.started_at,
+          })
+        }
+        if (unique.length >= 5) break
+      }
+      setRecentDestinations(unique)
+    }).catch(() => {
+      // Silently ignore — recent destinations are optional
+    })
+  }, [user])
+
+  // Filter recent destinations as suggestions while typing
+  const filteredSuggestions =
+    to.length > 0
+      ? recentDestinations.filter((d) =>
+          d.destination.toLowerCase().includes(to.toLowerCase())
+        )
+      : []
+
+  const showSuggestions =
+    isToFocused && to.length > 0 && filteredSuggestions.length > 0
   const showFrequentPlaces = !showSuggestions
 
   function selectSuggestion(name: string) {
@@ -58,7 +97,40 @@ export function PlanTripContent() {
     setTo(label)
   }
 
-  if (isLoading) {
+  async function handleFindRoutes() {
+    if (!user || !to.trim()) return
+
+    setSubmitting(true)
+    setError(null)
+
+    try {
+      const result = await routeService.plan({
+        user_id: user.id,
+        origin: from,
+        destination: to.trim(),
+      })
+
+      setOrigin(from)
+      setDestination(to.trim())
+      setRoutes(result.routes)
+      router.push("/routes")
+    } catch (err: unknown) {
+      if (
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        (err as { response?: { status?: number } }).response?.status === 404
+      ) {
+        setError("No routes found. Please check your origin and destination.")
+      } else {
+        setError("Something went wrong. Please try again.")
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (authLoading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -127,7 +199,10 @@ export function PlanTripContent() {
                 ref={toInputRef}
                 type="text"
                 value={to}
-                onChange={(e) => setTo(e.target.value)}
+                onChange={(e) => {
+                  setTo(e.target.value)
+                  setError(null)
+                }}
                 onFocus={() => setIsToFocused(true)}
                 onBlur={() => {
                   setTimeout(() => setIsToFocused(false), 150)
@@ -138,6 +213,14 @@ export function PlanTripContent() {
             </div>
           </div>
         </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-destructive" strokeWidth={1.8} />
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        )}
       </div>
 
       {/* Suggestions list */}
@@ -149,9 +232,9 @@ export function PlanTripContent() {
           <div className="mt-3 flex flex-col gap-1">
             {filteredSuggestions.map((suggestion) => (
               <button
-                key={suggestion.name}
+                key={suggestion.destination}
                 type="button"
-                onClick={() => selectSuggestion(suggestion.name)}
+                onClick={() => selectSuggestion(suggestion.destination)}
                 className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent/60"
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
@@ -162,10 +245,7 @@ export function PlanTripContent() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-foreground">
-                    {suggestion.name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {suggestion.address}
+                    {suggestion.destination}
                   </p>
                 </div>
               </button>
@@ -174,7 +254,7 @@ export function PlanTripContent() {
         </div>
       )}
 
-      {/* Frequent places */}
+      {/* Frequent places + recent destinations */}
       {showFrequentPlaces && (
         <div className="mt-6 px-6">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -197,43 +277,41 @@ export function PlanTripContent() {
             ))}
           </div>
 
-          {/* Recent destinations */}
-          <div className="mt-8">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Recent Destinations
-            </h2>
-            <div className="mt-3 flex flex-col gap-1">
-              {[
-                { name: "Phoenix Mall", address: "Whitefield, Bangalore", time: "Yesterday" },
-                { name: "Office", address: "Koramangala, Bangalore", time: "2 days ago" },
-              ].map((item) => (
-                <button
-                  key={item.name}
-                  type="button"
-                  onClick={() => setTo(item.name)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent/60"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
-                    <Clock
-                      className="h-4 w-4 text-muted-foreground"
-                      strokeWidth={1.8}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">
-                      {item.name}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {item.address}
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">
-                    {item.time}
-                  </span>
-                </button>
-              ))}
+          {/* Recent destinations from drive history */}
+          {recentDestinations.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Recent Destinations
+              </h2>
+              <div className="mt-3 flex flex-col gap-1">
+                {recentDestinations.map((item) => (
+                  <button
+                    key={item.destination + item.startedAt}
+                    type="button"
+                    onClick={() => setTo(item.destination)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent/60"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                      <Clock
+                        className="h-4 w-4 text-muted-foreground"
+                        strokeWidth={1.8}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        {item.destination}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(item.startedAt), {
+                        addSuffix: true,
+                      })}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -243,13 +321,22 @@ export function PlanTripContent() {
       {/* Find Routes button */}
       <div className="px-6 pb-10 pt-6">
         <Button
-          disabled={!to.trim()}
-          onClick={() => router.push("/routes")}
+          disabled={!to.trim() || submitting}
+          onClick={handleFindRoutes}
           className="h-14 w-full rounded-2xl text-base font-semibold shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
           size="lg"
         >
-          Find Routes
-          <ArrowRight className="ml-1.5 h-5 w-5" />
+          {submitting ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Finding Routes...
+            </>
+          ) : (
+            <>
+              Find Routes
+              <ArrowRight className="ml-1.5 h-5 w-5" />
+            </>
+          )}
         </Button>
       </div>
     </div>
