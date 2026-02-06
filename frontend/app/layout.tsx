@@ -12,6 +12,12 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: 'Serene - Your Driving Anxiety Companion',
   description: 'Overcome driving anxiety with personalized support, calming techniques, and progress tracking.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Serene',
+  },
 }
 
 export const viewport: Viewport = {
@@ -29,6 +35,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      </head>
       <body className={`${dmSans.variable} font-sans antialiased`}>{children}</body>
     </html>
   )
