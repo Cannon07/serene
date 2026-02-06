@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { MapPin, Navigation, Clock, Shield } from "lucide-react"
+import { MapPin, Navigation, Clock, Shield, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StressIntervention } from "@/components/stress-intervention"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 export function DriveContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
   const [elapsed, setElapsed] = useState(0)
   const [showIntervention, setShowIntervention] = useState(false)
 
@@ -29,6 +31,14 @@ export function DriveContent() {
   const minutes = Math.floor(elapsed / 60)
   const seconds = elapsed % 60
   const timeDisplay = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-[hsl(150,20%,6%)]">

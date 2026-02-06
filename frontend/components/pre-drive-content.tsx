@@ -15,8 +15,10 @@ import {
   Wind,
   ArrowRight,
   ClipboardCheck,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 const CHECKLIST_ITEMS = [
   { id: "review", label: "Review stress points below", defaultChecked: true },
@@ -27,6 +29,7 @@ const CHECKLIST_ITEMS = [
 
 export function PreDriveContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
   const [checked, setChecked] = useState<Set<string>>(
     new Set(CHECKLIST_ITEMS.filter((i) => i.defaultChecked).map((i) => i.id)),
   )
@@ -44,6 +47,14 @@ export function PreDriveContent() {
   }
 
   const allChecked = checked.size === CHECKLIST_ITEMS.length
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-dvh flex-col pb-10">

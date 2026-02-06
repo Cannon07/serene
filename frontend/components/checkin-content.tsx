@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, User, Video } from "lucide-react"
+import { ArrowLeft, ArrowRight, User, Video, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 export function CheckinContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
   const [isRecording, setIsRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
 
@@ -27,6 +29,14 @@ export function CheckinContent() {
   function handleStartRecording() {
     setIsRecording(true)
     setSeconds(0)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (

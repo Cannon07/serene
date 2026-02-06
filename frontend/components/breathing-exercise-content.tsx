@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { X } from "lucide-react"
+import { X, Loader2 } from "lucide-react"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 type Phase = "inhale" | "hold" | "exhale"
 
@@ -16,6 +17,7 @@ const TOTAL_ROUNDS = 4
 
 export function BreathingExerciseContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
   const [phaseIndex, setPhaseIndex] = useState(0)
   const [countdown, setCountdown] = useState(PHASES[0].duration)
   const [round, setRound] = useState(1)
@@ -78,6 +80,14 @@ export function BreathingExerciseContent() {
 
   function handleEnd() {
     router.back()
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (

@@ -80,7 +80,7 @@ export function ProfileSetup() {
               placeholder="Enter your name"
               value={store.name}
               onChange={(e) => store.setName(e.target.value)}
-              className="h-13 w-full rounded-xl border-2 border-border bg-card pl-11 pr-4 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary focus:ring-0"
+              className="h-13 w-full rounded-xl border-2 border-border bg-card py-3 pl-11 pr-4 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary focus:ring-0"
             />
           </div>
         </div>

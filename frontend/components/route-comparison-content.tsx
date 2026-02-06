@@ -1,11 +1,22 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { ArrowLeft, MapPin, Navigation } from "lucide-react"
+import { ArrowLeft, MapPin, Navigation, Loader2 } from "lucide-react"
 import { RouteCard } from "@/components/route-card"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 export function RouteComparisonContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
+
 
   return (
     <div className="flex min-h-dvh flex-col pb-10">

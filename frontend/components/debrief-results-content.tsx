@@ -7,8 +7,10 @@ import {
   TrendingDown,
   BookOpen,
   Heart,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 const JOURNEY_STEPS = [
   {
@@ -65,6 +67,15 @@ function getColorClasses(color: "destructive" | "amber" | "primary") {
 
 export function DebriefResultsContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-background pb-10">

@@ -11,8 +11,10 @@ import {
   ShoppingCart,
   Clock,
   ArrowRight,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 const FREQUENT_PLACES = [
   { icon: Building2, label: "Work" },
@@ -29,6 +31,7 @@ const SUGGESTIONS = [
 
 export function PlanTripContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
   const [from, setFrom] = useState("Current Location")
   const [to, setTo] = useState("")
   const [isToFocused, setIsToFocused] = useState(false)
@@ -53,6 +56,14 @@ export function PlanTripContent() {
 
   function selectFrequentPlace(label: string) {
     setTo(label)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (

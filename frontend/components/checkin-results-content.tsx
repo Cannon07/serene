@@ -11,8 +11,10 @@ import {
   CheckCircle2,
   Wind,
   MessageCircle,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 const DETECTED_ITEMS = [
   { icon: Mic, label: "Voice tremor detected" },
@@ -28,6 +30,15 @@ const RECOMMENDATIONS = [
 
 export function CheckinResultsContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-dvh flex-col pb-10">

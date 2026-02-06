@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, User, Video, MessageCircle } from "lucide-react"
+import { ArrowLeft, ArrowRight, User, Video, MessageCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useRequireUser } from "@/hooks/useRequireUser"
 
 const PROMPTS = [
   "What was hardest?",
@@ -13,6 +14,7 @@ const PROMPTS = [
 
 export function DebriefContent() {
   const router = useRouter()
+  const { isLoading } = useRequireUser()
   const [isRecording, setIsRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [activePrompt, setActivePrompt] = useState<string | null>(null)
@@ -34,6 +36,14 @@ export function DebriefContent() {
   function handleStartRecording() {
     setIsRecording(true)
     setSeconds(0)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
