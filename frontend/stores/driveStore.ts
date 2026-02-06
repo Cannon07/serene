@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DriveStartResponse } from '../types/drive';
+import { VideoAnalysisResult } from '../types/emotion';
 import { Route, RoutePrepareResponse } from '../types/route';
 import { RerouteOption } from '../types/reroute';
 import { VoiceCommandResponse } from '../types/voice';
@@ -10,6 +11,7 @@ interface DriveState {
   routes: Route[];
   selectedRoute: Route | null;
   prepareData: RoutePrepareResponse | null;
+  checkinResult: VideoAnalysisResult | null;
   activeDrive: DriveStartResponse | null;
   currentLocation: { latitude: number; longitude: number } | null;
   isListening: boolean;
@@ -20,6 +22,7 @@ interface DriveState {
   setRoutes: (v: Route[]) => void;
   setSelectedRoute: (v: Route | null) => void;
   setPrepareData: (v: RoutePrepareResponse | null) => void;
+  setCheckinResult: (v: VideoAnalysisResult | null) => void;
   setActiveDrive: (v: DriveStartResponse | null) => void;
   setCurrentLocation: (v: { latitude: number; longitude: number } | null) => void;
   setIsListening: (v: boolean) => void;
@@ -34,6 +37,7 @@ export const useDriveStore = create<DriveState>((set) => ({
   routes: [],
   selectedRoute: null,
   prepareData: null,
+  checkinResult: null,
   activeDrive: null,
   currentLocation: null,
   isListening: false,
@@ -44,10 +48,11 @@ export const useDriveStore = create<DriveState>((set) => ({
   setRoutes: (routes) => set({ routes }),
   setSelectedRoute: (selectedRoute) => set({ selectedRoute }),
   setPrepareData: (prepareData) => set({ prepareData }),
+  setCheckinResult: (checkinResult) => set({ checkinResult }),
   setActiveDrive: (activeDrive) => set({ activeDrive }),
   setCurrentLocation: (currentLocation) => set({ currentLocation }),
   setIsListening: (isListening) => set({ isListening }),
   setLastVoiceResponse: (lastVoiceResponse) => set({ lastVoiceResponse }),
   setRerouteOption: (rerouteOption) => set({ rerouteOption }),
-  clear: () => set({ origin: '', destination: '', routes: [], selectedRoute: null, prepareData: null, activeDrive: null, currentLocation: null, isListening: false, lastVoiceResponse: null, rerouteOption: null }),
+  clear: () => set({ origin: '', destination: '', routes: [], selectedRoute: null, prepareData: null, checkinResult: null, activeDrive: null, currentLocation: null, isListening: false, lastVoiceResponse: null, rerouteOption: null }),
 }));
