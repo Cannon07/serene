@@ -20,7 +20,6 @@ import { useRequireUser } from "@/hooks/useRequireUser"
 import { useDriveStore } from "@/stores/driveStore"
 import { routeService } from "@/services/routeService"
 import { driveService } from "@/services/driveService"
-import type { DriveListItem } from "@/types/drive"
 
 const FREQUENT_PLACES = [
   { icon: Building2, label: "Work" },
