@@ -95,10 +95,11 @@ export function DashboardContent() {
         setStats(statsRes)
         setRecentDrives(historyRes.drives)
 
-        // Active drive may 404 if none exists
+        // Backend returns { active_drive: <data> | null }
         try {
-          const active = await driveService.getActive(user.id)
-          setActiveDrive(active)
+          const activeRes = await driveService.getActive(user.id)
+          const unwrapped = (activeRes as unknown as { active_drive: ActiveDriveResponse | null }).active_drive
+          setActiveDrive(unwrapped ?? null)
         } catch {
           setActiveDrive(null)
         }
