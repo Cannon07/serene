@@ -318,7 +318,7 @@ export function PlanTripContent() {
       <div className="flex-1" />
 
       {/* Find Routes button */}
-      <div className="px-6 pb-10 pt-6">
+      <div className="px-6 pb-20 pt-6">
         <Button
           disabled={!to.trim() || submitting}
           onClick={handleFindRoutes}

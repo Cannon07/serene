@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { X, Loader2 } from "lucide-react"
 import { useRequireUser } from "@/hooks/useRequireUser"
+import { useDriveStore } from "@/stores/driveStore"
 
 type Phase = "inhale" | "hold" | "exhale"
 
@@ -18,6 +19,7 @@ const TOTAL_ROUNDS = 4
 export function BreathingExerciseContent() {
   const router = useRouter()
   const { isLoading } = useRequireUser()
+  const exerciseName = useDriveStore((s) => s.prepareData?.breathing_exercise?.name) ?? "4-7-8 Breathing"
   const [phaseIndex, setPhaseIndex] = useState(0)
   const [countdown, setCountdown] = useState(PHASES[0].duration)
   const [round, setRound] = useState(1)
@@ -97,7 +99,7 @@ export function BreathingExerciseContent() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground">
-              4-7-8 Breathing
+              {exerciseName}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Follow the circle
@@ -131,7 +133,7 @@ export function BreathingExerciseContent() {
               Well Done
             </h2>
             <p className="max-w-[260px] text-center text-sm leading-relaxed text-muted-foreground">
-              You completed 4 rounds of 4-7-8 breathing. Take a moment to notice
+              You completed 4 rounds of {exerciseName.toLowerCase()}. Take a moment to notice
               how calm you feel.
             </p>
           </div>
