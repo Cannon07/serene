@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Music,
@@ -14,30 +13,31 @@ import {
 import { Button } from "@/components/ui/button"
 import { OnboardingProgress } from "@/components/onboarding-progress"
 import { CalmingCard } from "@/components/calming-card"
+import { useOnboardingStore } from "@/stores/onboardingStore"
 
 const CALMING_OPTIONS = [
   {
-    id: "music",
+    id: "CALMING_MUSIC",
     icon: <Music className="h-6 w-6 text-primary" strokeWidth={1.8} />,
     label: "Calming music",
   },
   {
-    id: "breathing",
+    id: "DEEP_BREATHING",
     icon: <Wind className="h-6 w-6 text-primary" strokeWidth={1.8} />,
     label: "Deep breathing",
   },
   {
-    id: "talking",
+    id: "TALKING",
     icon: <MessageCircle className="h-6 w-6 text-primary" strokeWidth={1.8} />,
     label: "Talking it out",
   },
   {
-    id: "pulling-over",
+    id: "PULLING_OVER",
     icon: <CircleParking className="h-6 w-6 text-primary" strokeWidth={1.8} />,
     label: "Pulling over",
   },
   {
-    id: "silence",
+    id: "SILENCE",
     icon: <VolumeX className="h-6 w-6 text-primary" strokeWidth={1.8} />,
     label: "Silence",
   },
@@ -45,19 +45,7 @@ const CALMING_OPTIONS = [
 
 export function CalmingSelection() {
   const router = useRouter()
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-
-  function toggleOption(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
+  const { preferences, togglePreference } = useOnboardingStore()
 
   return (
     <div className="flex min-h-dvh flex-col px-6 pb-8 pt-6">
@@ -88,10 +76,10 @@ export function CalmingSelection() {
       </div>
 
       {/* Selected count */}
-      {selected.size > 0 && (
+      {preferences.length > 0 && (
         <div className="mt-4">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            {selected.size} selected
+            {preferences.length} selected
           </span>
         </div>
       )}
@@ -103,8 +91,8 @@ export function CalmingSelection() {
             key={option.id}
             icon={option.icon}
             label={option.label}
-            selected={selected.has(option.id)}
-            onToggle={() => toggleOption(option.id)}
+            selected={preferences.includes(option.id)}
+            onToggle={() => togglePreference(option.id)}
           />
         ))}
       </div>
@@ -122,7 +110,7 @@ export function CalmingSelection() {
           Continue
           <ArrowRight className="ml-1.5 h-5 w-5" />
         </Button>
-        {selected.size === 0 && (
+        {preferences.length === 0 && (
           <p className="mt-3 text-center text-xs text-muted-foreground">
             You can skip this step for now
           </p>

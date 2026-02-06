@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Car,
@@ -15,40 +14,41 @@ import {
 import { Button } from "@/components/ui/button"
 import { OnboardingProgress } from "@/components/onboarding-progress"
 import { TriggerChip } from "@/components/trigger-chip"
+import { useOnboardingStore } from "@/stores/onboardingStore"
 
 const TRIGGERS = [
   {
-    id: "traffic",
+    id: "HEAVY_TRAFFIC",
     icon: <Car className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Heavy traffic",
   },
   {
-    id: "honking",
+    id: "HONKING",
     icon: <Volume2 className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Honking & loud noises",
   },
   {
-    id: "highways",
+    id: "HIGHWAYS",
     icon: <ArrowRight className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Highways",
   },
   {
-    id: "night",
+    id: "NIGHT_DRIVING",
     icon: <Moon className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Night driving",
   },
   {
-    id: "intersections",
+    id: "COMPLEX_INTERSECTIONS",
     icon: <Shuffle className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Complex intersections",
   },
   {
-    id: "construction",
+    id: "CONSTRUCTION",
     icon: <Construction className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Construction zones",
   },
   {
-    id: "pedestrians",
+    id: "PEDESTRIAN_AREAS",
     icon: <Footprints className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Pedestrian areas",
   },
@@ -56,19 +56,7 @@ const TRIGGERS = [
 
 export function TriggerSelection() {
   const router = useRouter()
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-
-  function toggleTrigger(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
+  const { triggers, toggleTrigger } = useOnboardingStore()
 
   return (
     <div className="flex min-h-dvh flex-col px-6 pb-8 pt-6">
@@ -98,10 +86,10 @@ export function TriggerSelection() {
       </div>
 
       {/* Selected count */}
-      {selected.size > 0 && (
+      {triggers.length > 0 && (
         <div className="mt-4">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            {selected.size} selected
+            {triggers.length} selected
           </span>
         </div>
       )}
@@ -113,7 +101,7 @@ export function TriggerSelection() {
             key={trigger.id}
             icon={trigger.icon}
             label={trigger.label}
-            selected={selected.has(trigger.id)}
+            selected={triggers.includes(trigger.id)}
             onToggle={() => toggleTrigger(trigger.id)}
           />
         ))}
@@ -132,7 +120,7 @@ export function TriggerSelection() {
           Continue
           <ArrowRight className="ml-1.5 h-5 w-5" />
         </Button>
-        {selected.size === 0 && (
+        {triggers.length === 0 && (
           <p className="mt-3 text-center text-xs text-muted-foreground">
             You can skip this step for now
           </p>

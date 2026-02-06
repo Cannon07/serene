@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Building2,
@@ -16,47 +15,58 @@ import { Button } from "@/components/ui/button"
 import { OnboardingProgress } from "@/components/onboarding-progress"
 import { GoalCard } from "@/components/goal-card"
 import { TargetDatePicker } from "@/components/target-date-picker"
+import { useOnboardingStore } from "@/stores/onboardingStore"
 
 const GOALS = [
   {
-    id: "work",
+    id: "WORK_COMMUTE",
     icon: <Building2 className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Drive to work independently",
   },
   {
-    id: "highway",
+    id: "HIGHWAY_ANXIETY",
     icon: <Route className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Overcome highway anxiety",
   },
   {
-    id: "road-trips",
+    id: "LONGER_TRIPS",
     icon: <Car className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Take longer road trips",
   },
   {
-    id: "night",
+    id: "NIGHT_DRIVING",
     icon: <Moon className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Feel comfortable driving at night",
   },
   {
-    id: "family",
+    id: "VISIT_FAMILY",
     icon: <Users className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Visit family without depending on others",
   },
   {
-    id: "other",
+    id: "OTHER",
     icon: <Sparkles className="h-5 w-5 text-primary" strokeWidth={1.8} />,
     label: "Other goal",
   },
 ]
 
+function parseDeadline(deadline: string): { month: number; year: number } {
+  if (!deadline) return { month: 5, year: 2026 }
+  const date = new Date(deadline)
+  return { month: date.getMonth(), year: date.getFullYear() }
+}
+
+function toDeadlineISO(month: number, year: number): string {
+  const date = new Date(year, month + 1, 0) // last day of the month
+  return date.toISOString().split("T")[0]
+}
+
 export function GoalSelection() {
   const router = useRouter()
-  const [selectedGoal, setSelectedGoal] = useState<string | null>(null)
-  const [targetMonth, setTargetMonth] = useState(5) // June
-  const [targetYear, setTargetYear] = useState(2026)
+  const { goal, deadline, setGoal, setDeadline } = useOnboardingStore()
+  const { month: targetMonth, year: targetYear } = parseDeadline(deadline)
 
-  const isValid = selectedGoal !== null
+  const isValid = goal !== ""
 
   return (
     <div className="flex min-h-dvh flex-col px-6 pb-8 pt-6">
@@ -87,13 +97,13 @@ export function GoalSelection() {
 
       {/* Goal cards */}
       <div className="mt-6 flex flex-col gap-2.5">
-        {GOALS.map((goal) => (
+        {GOALS.map((g) => (
           <GoalCard
-            key={goal.id}
-            icon={goal.icon}
-            label={goal.label}
-            selected={selectedGoal === goal.id}
-            onSelect={() => setSelectedGoal(goal.id)}
+            key={g.id}
+            icon={g.icon}
+            label={g.label}
+            selected={goal === g.id}
+            onSelect={() => setGoal(g.id)}
           />
         ))}
       </div>
@@ -103,8 +113,8 @@ export function GoalSelection() {
         <TargetDatePicker
           month={targetMonth}
           year={targetYear}
-          onMonthChange={setTargetMonth}
-          onYearChange={setTargetYear}
+          onMonthChange={(m) => setDeadline(toDeadlineISO(m, targetYear))}
+          onYearChange={(y) => setDeadline(toDeadlineISO(targetMonth, y))}
         />
       </div>
 

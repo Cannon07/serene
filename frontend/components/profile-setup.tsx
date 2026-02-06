@@ -2,31 +2,36 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, User } from "lucide-react"
+import { ArrowLeft, ArrowRight, User, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { OnboardingProgress } from "@/components/onboarding-progress"
 import { RadioCard } from "@/components/radio-card"
+import { useOnboardingStore } from "@/stores/onboardingStore"
+import { useUserStore } from "@/stores/userStore"
+import { userService } from "@/services/userService"
+import type { ResolutionGoal, DrivingExperience, DrivingFrequency, StressTrigger, CalmingPreference } from "@/types/user"
 
 const EXPERIENCE_OPTIONS = [
-  { id: "new", label: "New driver (less than 1 year)" },
-  { id: "some", label: "Some experience (1-3 years)" },
-  { id: "experienced", label: "Experienced (3+ years)" },
+  { id: "NEW", label: "New driver (less than 1 year)" },
+  { id: "SOME", label: "Some experience (1-3 years)" },
+  { id: "EXPERIENCED", label: "Experienced (3+ years)" },
 ]
 
 const FREQUENCY_OPTIONS = [
-  { id: "daily", label: "Daily" },
-  { id: "few-times", label: "Few times a week" },
-  { id: "occasionally", label: "Occasionally" },
-  { id: "rarely", label: "Rarely" },
+  { id: "DAILY", label: "Daily" },
+  { id: "FEW_TIMES_WEEK", label: "Few times a week" },
+  { id: "OCCASIONALLY", label: "Occasionally" },
+  { id: "RARELY", label: "Rarely" },
 ]
 
 export function ProfileSetup() {
   const router = useRouter()
-  const [name, setName] = useState("")
-  const [experience, setExperience] = useState<string | null>(null)
-  const [frequency, setFrequency] = useState<string | null>(null)
+  const store = useOnboardingStore()
+  const { setUser } = useUserStore()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const isValid = name.trim().length > 0 && experience !== null && frequency !== null
+  const isValid = store.name.trim().length > 0 && store.experience !== "" && store.frequency !== ""
 
   return (
     <div className="flex min-h-dvh flex-col px-6 pb-8 pt-6">
@@ -73,8 +78,8 @@ export function ProfileSetup() {
               id="user-name"
               type="text"
               placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={store.name}
+              onChange={(e) => store.setName(e.target.value)}
               className="h-13 w-full rounded-xl border-2 border-border bg-card pl-11 pr-4 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary focus:ring-0"
             />
           </div>
@@ -90,8 +95,8 @@ export function ProfileSetup() {
               <RadioCard
                 key={option.id}
                 label={option.label}
-                selected={experience === option.id}
-                onSelect={() => setExperience(option.id)}
+                selected={store.experience === option.id}
+                onSelect={() => store.setExperience(option.id)}
               />
             ))}
           </div>
@@ -107,8 +112,8 @@ export function ProfileSetup() {
               <RadioCard
                 key={option.id}
                 label={option.label}
-                selected={frequency === option.id}
-                onSelect={() => setFrequency(option.id)}
+                selected={store.frequency === option.id}
+                onSelect={() => store.setFrequency(option.id)}
               />
             ))}
           </div>
@@ -118,16 +123,53 @@ export function ProfileSetup() {
       {/* Spacer */}
       <div className="min-h-6 flex-1" />
 
+      {/* Error message */}
+      {error && (
+        <div className="mt-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
       {/* Complete button */}
       <div className="mt-8">
         <Button
-          disabled={!isValid}
-          onClick={() => router.push("/dashboard")}
+          disabled={!isValid || isSubmitting}
+          onClick={async () => {
+            setIsSubmitting(true)
+            setError(null)
+            try {
+              const user = await userService.create({
+                name: store.name,
+                resolution_goal: store.goal as ResolutionGoal,
+                resolution_deadline: store.deadline || undefined,
+                driving_experience: store.experience as DrivingExperience,
+                driving_frequency: store.frequency as DrivingFrequency,
+                stress_triggers: store.triggers as StressTrigger[],
+                calming_preferences: store.preferences as CalmingPreference[],
+              })
+              setUser(user)
+              store.reset()
+              router.push("/dashboard")
+            } catch (err) {
+              setError("Something went wrong. Please try again.")
+            } finally {
+              setIsSubmitting(false)
+            }
+          }}
           className="h-14 w-full rounded-2xl text-base font-semibold shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
           size="lg"
         >
-          Complete Setup
-          <ArrowRight className="ml-1.5 h-5 w-5" />
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-1.5 h-5 w-5 animate-spin" />
+              Creating profile...
+            </>
+          ) : (
+            <>
+              Complete Setup
+              <ArrowRight className="ml-1.5 h-5 w-5" />
+            </>
+          )}
         </Button>
       </div>
     </div>
