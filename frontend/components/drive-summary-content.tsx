@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   MapPin,
@@ -10,10 +10,12 @@ import {
   AlertTriangle,
   Navigation,
   Loader2,
+  Star,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRequireUser } from "@/hooks/useRequireUser"
 import { useDriveStore } from "@/stores/driveStore"
+import { driveService } from "@/services/driveService"
 
 export function DriveSummaryContent() {
   const router = useRouter()
@@ -23,12 +25,28 @@ export function DriveSummaryContent() {
   const destination = useDriveStore((s) => s.destination)
   const selectedRoute = useDriveStore((s) => s.selectedRoute)
 
+  const [rating, setRating] = useState<number>(0)
+  const [submittingRating, setSubmittingRating] = useState(false)
+
   // Redirect to dashboard if no drive data (e.g. direct navigation)
   useEffect(() => {
     if (!isLoading && !driveEndResponse) {
       router.replace("/dashboard")
     }
   }, [isLoading, driveEndResponse, router])
+
+  async function handleRate(value: number) {
+    if (!driveEndResponse || submittingRating) return
+    setRating(value)
+    setSubmittingRating(true)
+    try {
+      await driveService.rate(driveEndResponse.id, { rating: value })
+    } catch {
+      // Rating failed silently — the star UI still shows the selection
+    } finally {
+      setSubmittingRating(false)
+    }
+  }
 
   if (isLoading || !driveEndResponse) {
     return (
@@ -183,8 +201,43 @@ export function DriveSummaryContent() {
         </div>
       )}
 
+      {/* Rate your drive */}
+      <div className="mt-6 px-6">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-border bg-card p-5">
+          <p className="text-sm font-bold text-foreground">
+            How was this drive?
+          </p>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleRate(value)}
+                disabled={submittingRating}
+                className="rounded-lg p-1.5 transition-transform hover:scale-110 active:scale-95 disabled:opacity-60"
+                aria-label={`Rate ${value} star${value > 1 ? "s" : ""}`}
+              >
+                <Star
+                  className={`h-8 w-8 transition-colors ${
+                    value <= rating
+                      ? "fill-primary text-primary"
+                      : "fill-none text-border hover:text-primary/40"
+                  }`}
+                  strokeWidth={1.8}
+                />
+              </button>
+            ))}
+          </div>
+          {rating > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {rating <= 2 ? "Thanks for your feedback" : rating <= 4 ? "Great drive!" : "Amazing!"}
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Debrief prompt */}
-      <div className="mt-8 px-6">
+      <div className="mt-6 px-6">
         <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-border bg-card p-6 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Navigation className="h-6 w-6 text-primary" strokeWidth={1.8} />

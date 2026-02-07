@@ -101,3 +101,13 @@ export interface AcceptRerouteResponse {
   success: boolean;
   reroutes_accepted: number;
 }
+
+export interface DriveRatingRequest {
+  rating: number; // 1-5
+}
+
+export interface DriveRatingResponse {
+  success: boolean;
+  drive_id: string;
+  rating: number;
+}

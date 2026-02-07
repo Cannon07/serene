@@ -8,6 +8,8 @@ import {
   DriveListResponse,
   AcceptRerouteRequest,
   AcceptRerouteResponse,
+  DriveRatingRequest,
+  DriveRatingResponse,
 } from '../types/drive';
 
 export const driveService = {
@@ -23,4 +25,6 @@ export const driveService = {
     api.get(`/api/users/${userId}/drives`, { params: { limit, offset } }).then(r => r.data),
   acceptReroute: (driveId: string, data: AcceptRerouteRequest): Promise<AcceptRerouteResponse> =>
     api.post(`/api/drives/${driveId}/accept-reroute`, data).then(r => r.data),
+  rate: (driveId: string, data: DriveRatingRequest): Promise<DriveRatingResponse> =>
+    api.post(`/api/drives/${driveId}/rate`, data).then(r => r.data),
 };

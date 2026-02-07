@@ -23,6 +23,8 @@ from models.schemas import (
     DriveListItem,
     AcceptRerouteRequest,
     AcceptRerouteResponse,
+    DriveRatingRequest,
+    DriveRatingResponse,
 )
 
 
@@ -258,6 +260,35 @@ async def accept_reroute(
     return AcceptRerouteResponse(
         success=True,
         reroutes_accepted=drive.reroutes_accepted,
+    )
+
+
+@router.post("/{drive_id}/rate", response_model=DriveRatingResponse)
+async def rate_drive(
+    drive_id: str,
+    request: DriveRatingRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Rate a completed drive.
+
+    Accepts a rating from 1-5 for a completed drive.
+    Can be called multiple times to update the rating.
+    """
+    drive = await _get_drive_with_events(drive_id, db)
+    if not drive:
+        raise HTTPException(status_code=404, detail="Drive not found")
+
+    if not drive.completed_at:
+        raise HTTPException(status_code=400, detail="Cannot rate an in-progress drive")
+
+    drive.rating = request.rating
+    await db.commit()
+
+    return DriveRatingResponse(
+        success=True,
+        drive_id=drive.id,
+        rating=drive.rating,
     )
 
 

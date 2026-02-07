@@ -361,3 +361,13 @@ class AcceptRerouteRequest(BaseModel):
 class AcceptRerouteResponse(BaseModel):
     success: bool
     reroutes_accepted: int
+
+
+class DriveRatingRequest(BaseModel):
+    rating: int = Field(ge=1, le=5)
+
+
+class DriveRatingResponse(BaseModel):
+    success: bool
+    drive_id: str
+    rating: int
