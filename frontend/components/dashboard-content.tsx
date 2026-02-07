@@ -18,9 +18,12 @@ import {
   Loader2,
   Car,
   MapPin,
+  Download,
+  X,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { useRequireUser } from "@/hooks/useRequireUser"
+import { useInstallPrompt } from "@/hooks/useInstallPrompt"
 import { useUserStore } from "@/stores/userStore"
 import { userService } from "@/services/userService"
 import { driveService } from "@/services/driveService"
@@ -75,6 +78,9 @@ export function DashboardContent() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useRequireUser()
   const setStats = useUserStore((s) => s.setStats)
+
+  const { canInstall, install } = useInstallPrompt()
+  const [installDismissed, setInstallDismissed] = useState(false)
 
   const [stats, setLocalStats] = useState<UserStats | null>(null)
   const [recentDrives, setRecentDrives] = useState<DriveListItem[]>([])
@@ -201,6 +207,40 @@ export function DashboardContent() {
           </button>
         </div>
       </div>
+
+      {/* Install app banner */}
+      {canInstall && !installDismissed && (
+        <div className="mt-5 px-6">
+          <div className="flex items-center gap-3 rounded-2xl border-2 border-primary/20 bg-primary/5 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+              <Download className="h-5 w-5 text-primary" strokeWidth={1.8} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">
+                Install Serene
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Add to home screen for the best experience
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={install}
+              className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Install
+            </button>
+            <button
+              type="button"
+              onClick={() => setInstallDismissed(true)}
+              className="shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Active drive banner */}
       {activeDrive && (
