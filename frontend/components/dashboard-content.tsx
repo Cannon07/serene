@@ -93,13 +93,23 @@ export function DashboardContent() {
         ])
         setLocalStats(statsRes)
         setStats(statsRes)
-        setRecentDrives(historyRes.drives)
+        // Filter out in-progress drives (no completed_at)
+        setRecentDrives(historyRes.drives.filter((d) => d.completed_at !== null))
 
-        // Backend returns { active_drive: <data> | null }
+        // Backend returns ActiveDriveResponse directly when active,
+        // or { active_drive: null } when no active drive
         try {
           const activeRes = await driveService.getActive(user.id)
-          const unwrapped = (activeRes as unknown as { active_drive: ActiveDriveResponse | null }).active_drive
-          setActiveDrive(unwrapped ?? null)
+          const raw = activeRes as unknown as Record<string, unknown>
+          if ("active_drive" in raw && raw.active_drive === null) {
+            // No active drive
+            setActiveDrive(null)
+          } else if (raw.id) {
+            // Response IS the active drive
+            setActiveDrive(raw as unknown as ActiveDriveResponse)
+          } else {
+            setActiveDrive(null)
+          }
         } catch {
           setActiveDrive(null)
         }

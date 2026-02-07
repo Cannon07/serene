@@ -64,15 +64,41 @@ export function DriveContent() {
     }
   }, [geo.position, setCurrentLocation])
 
-  // Start drive on mount (once)
+  // Start drive or resume existing active drive on mount (once)
   useEffect(() => {
     if (!user || startedRef.current || activeDrive) return
     startedRef.current = true
 
-    async function startDrive() {
+    async function initDrive() {
       setStarting(true)
       setError(null)
 
+      try {
+        // First check if there's already an active drive in the backend
+        const activeRes = await driveService.getActive(user!.id)
+        const raw = activeRes as unknown as Record<string, unknown>
+
+        if (!("active_drive" in raw && raw.active_drive === null) && raw.id) {
+          // Resume existing active drive
+          setActiveDrive({
+            id: raw.id as string,
+            user_id: raw.user_id as string,
+            started_at: raw.started_at as string,
+            origin: raw.origin as string,
+            destination: raw.destination as string,
+            selected_route_type: raw.selected_route_type as string,
+            pre_drive_stress: raw.pre_drive_stress as number | null,
+            maps_url: (raw.maps_url as string | null) ?? null,
+            status: "IN_PROGRESS",
+          })
+          setStarting(false)
+          return
+        }
+      } catch {
+        // No active drive or endpoint error — proceed to start a new one
+      }
+
+      // No active drive — start a new one
       try {
         const routeType =
           selectedRoute?.is_recommended ? "CALMEST" : "FASTEST"
@@ -83,6 +109,7 @@ export function DriveContent() {
           destination: destination || "Unknown",
           selected_route_type: routeType as "FASTEST" | "CALMEST",
           pre_drive_stress: checkinResult?.stress_score,
+          maps_url: selectedRoute?.maps_url,
         })
 
         setActiveDrive(result)
@@ -94,14 +121,18 @@ export function DriveContent() {
       }
     }
 
-    startDrive()
+    initDrive()
   }, [user, activeDrive, origin, destination, selectedRoute, checkinResult, setActiveDrive])
 
   // Timer based on activeDrive.started_at
   useEffect(() => {
     if (!activeDrive) return
 
-    const startTime = new Date(activeDrive.started_at).getTime()
+    // Backend returns UTC timestamps without Z suffix — append it so JS parses as UTC
+    const ts = activeDrive.started_at.endsWith("Z")
+      ? activeDrive.started_at
+      : activeDrive.started_at + "Z"
+    const startTime = new Date(ts).getTime()
 
     function tick() {
       const now = Date.now()
@@ -122,6 +153,7 @@ export function DriveContent() {
     try {
       const result = await driveService.end(activeDrive.id)
       setDriveEndResponse(result)
+      setActiveDrive(null) // Clear so next visit to /drive starts fresh
       router.push("/drive/summary")
     } catch {
       setError("Failed to end drive. Please try again.")
@@ -129,11 +161,18 @@ export function DriveContent() {
     }
   }, [activeDrive, ending, setDriveEndResponse, router])
 
+  // Build Maps URL: prefer selectedRoute, then activeDrive.maps_url, then generic directions
+  const mapsUrl = selectedRoute?.maps_url
+    || activeDrive?.maps_url
+    || (activeDrive
+      ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(activeDrive.origin)}&destination=${encodeURIComponent(activeDrive.destination)}`
+      : null)
+
   const handleOpenMaps = useCallback(() => {
-    if (selectedRoute?.maps_url) {
-      window.open(selectedRoute.maps_url, "_blank")
+    if (mapsUrl) {
+      window.open(mapsUrl, "_blank")
     }
-  }, [selectedRoute])
+  }, [mapsUrl])
 
   const minutes = Math.floor(elapsed / 60)
   const seconds = elapsed % 60
@@ -243,7 +282,7 @@ export function DriveContent() {
           </div>
           <div className="flex-1">
             <p className="text-base font-bold text-white">
-              {destination || "Destination"}
+              {activeDrive?.destination || destination || "Destination"}
             </p>
             <div className="mt-1 flex items-center gap-1.5">
               <Clock
@@ -264,7 +303,7 @@ export function DriveContent() {
       <div className="mt-5 px-6">
         <Button
           onClick={handleOpenMaps}
-          disabled={!selectedRoute?.maps_url}
+          disabled={!mapsUrl}
           className="h-16 w-full rounded-2xl bg-[hsl(152,55%,42%)] text-lg font-bold text-white shadow-xl shadow-[hsl(152,55%,42%)]/30 hover:bg-[hsl(152,55%,38%)] active:scale-[0.98] transition-all disabled:opacity-40"
           size="lg"
         >

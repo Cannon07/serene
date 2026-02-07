@@ -74,6 +74,7 @@ class Drive(Base):
     origin: Mapped[str] = mapped_column(String(255))
     destination: Mapped[str] = mapped_column(String(255))
     selected_route_type: Mapped[str] = mapped_column(String(20))
+    maps_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     pre_drive_stress: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     post_drive_stress: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     reroutes_offered: Mapped[int] = mapped_column(Integer, default=0)

@@ -268,6 +268,7 @@ class DriveStartRequest(BaseModel):
     destination: str = Field(min_length=1, max_length=255)
     selected_route_type: str = Field(pattern="^(FASTEST|CALMEST)$")
     pre_drive_stress: Optional[float] = Field(default=None, ge=0, le=1)
+    maps_url: Optional[str] = Field(default=None, max_length=500)
 
 
 class DriveStartResponse(BaseModel):
@@ -278,6 +279,7 @@ class DriveStartResponse(BaseModel):
     destination: str
     selected_route_type: str
     pre_drive_stress: Optional[float]
+    maps_url: Optional[str]
     status: str  # IN_PROGRESS or COMPLETED
 
 
@@ -328,6 +330,7 @@ class ActiveDriveResponse(BaseModel):
     destination: str
     selected_route_type: str
     pre_drive_stress: Optional[float]
+    maps_url: Optional[str]
     events_count: int
     latest_stress_level: Optional[float]
 

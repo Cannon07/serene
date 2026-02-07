@@ -7,6 +7,7 @@ export interface DriveStartRequest {
   destination: string;
   selected_route_type: RouteType;
   pre_drive_stress?: number; // 0-1
+  maps_url?: string;
 }
 
 export interface DriveStartResponse {
@@ -17,6 +18,7 @@ export interface DriveStartResponse {
   destination: string;
   selected_route_type: string;
   pre_drive_stress: number | null;
+  maps_url: string | null;
   status: 'IN_PROGRESS' | 'COMPLETED';
 }
 
@@ -67,6 +69,7 @@ export interface ActiveDriveResponse {
   destination: string;
   selected_route_type: string;
   pre_drive_stress: number | null;
+  maps_url: string | null;
   events_count: number;
   latest_stress_level: number | null;
 }
