@@ -1,9 +1,11 @@
 """
 Voice Command API for processing voice commands during drives.
+Includes OpenAI Whisper transcription and TTS endpoints.
 """
 import re
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -16,6 +18,7 @@ from models.schemas import VoiceCommandRequest, VoiceCommandResponse
 from agents.calm_agent import CalmAgent
 from agents.reroute_agent import RerouteAgent
 from agents.emotion_agent import InterventionType
+from config.rag_config import get_openai_api_key
 
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
@@ -371,6 +374,90 @@ async def _handle_end_drive(
         speech_response=SPEECH_RESPONSES["END_DRIVE_CONFIRMED"],
         eta_info=drive_summary,  # Reusing eta_info field for drive summary
     )
+
+
+@router.post("/transcribe")
+async def transcribe_audio(
+    file: UploadFile = File(...),
+):
+    """
+    Transcribe audio using OpenAI Whisper.
+
+    Accepts an audio file (webm, mp3, wav, etc.) and returns transcribed text.
+    Used by the frontend for speech-to-text in noisy car environments.
+    """
+    api_key = get_openai_api_key()
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI API key not configured. Use browser speech recognition as fallback.",
+        )
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+
+        audio_bytes = await file.read()
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(file.filename or "audio.webm", audio_bytes),
+        )
+
+        return {"text": transcript.text}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transcription failed: {str(e)}",
+        )
+
+
+@router.post("/speak")
+async def text_to_speech(
+    text: str = Form(...),
+    voice: str = Form("nova"),
+):
+    """
+    Convert text to speech using OpenAI TTS.
+
+    Accepts text and an optional voice parameter, returns audio bytes (mp3).
+    Voice options: alloy, echo, fable, onyx, nova, shimmer.
+    Default is 'nova' (warm, calming tone suitable for anxiety support).
+    """
+    api_key = get_openai_api_key()
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI API key not configured. Use browser speech synthesis as fallback.",
+        )
+
+    allowed_voices = {"alloy", "echo", "fable", "onyx", "nova", "shimmer"}
+    if voice not in allowed_voices:
+        voice = "nova"
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice=voice,
+            input=text,
+        )
+
+        return Response(
+            content=response.content,
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=speech.mp3"},
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Text-to-speech failed: {str(e)}",
+        )
 
 
 @router.post("/command", response_model=VoiceCommandResponse)

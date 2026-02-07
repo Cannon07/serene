@@ -8,6 +8,7 @@ httpx
 opik
 hume
 python-multipart
+openai>=1.0.0
 # RAG dependencies
 langchain-core>=0.1.0
 langchain-openai>=0.0.5
