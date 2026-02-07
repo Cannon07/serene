@@ -2,25 +2,25 @@
 
 import React from "react"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   ChevronRight,
   Zap,
   Heart,
   Target,
-  Bell,
+  Camera,
   Mic,
-  Smartphone,
-  HelpCircle,
-  Shield,
-  FileText,
+  MapPin,
   Info,
   LogOut,
   Settings,
   Copy,
   Check,
   Loader2,
+  ShieldCheck,
+  ShieldX,
+  ShieldQuestion,
 } from "lucide-react"
 import { useUserStore } from "@/stores/userStore"
 import { useRequireUser } from "@/hooks/useRequireUser"
@@ -30,8 +30,10 @@ interface SettingsItemProps {
   label: string
   iconBg?: string
   iconColor?: string
-  trailing?: "chevron" | "toggle" | "text"
+  trailing?: "chevron" | "toggle" | "text" | "badge"
   trailingText?: string
+  badgeText?: string
+  badgeColor?: string
   toggled?: boolean
   onToggle?: () => void
   onClick?: () => void
@@ -44,6 +46,8 @@ function SettingsItem({
   iconColor = "text-foreground",
   trailing = "chevron",
   trailingText,
+  badgeText,
+  badgeColor,
   toggled,
   onToggle,
   onClick,
@@ -86,6 +90,11 @@ function SettingsItem({
           {trailingText}
         </span>
       )}
+      {trailing === "badge" && badgeText && (
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${badgeColor}`}>
+          {badgeText}
+        </span>
+      )}
     </button>
   )
 }
@@ -113,14 +122,96 @@ function Divider() {
   return <div className="mx-4 border-t border-border" />
 }
 
+type PermStatus = "granted" | "denied" | "prompt" | "unknown"
+
+function getPermBadge(status: PermStatus): { text: string; color: string; icon: React.ElementType } {
+  switch (status) {
+    case "granted":
+      return { text: "Granted", color: "bg-primary/10 text-primary", icon: ShieldCheck }
+    case "denied":
+      return { text: "Denied", color: "bg-destructive/10 text-destructive", icon: ShieldX }
+    case "prompt":
+      return { text: "Not set", color: "bg-[hsl(35,80%,50%)]/10 text-[hsl(35,80%,50%)]", icon: ShieldQuestion }
+    default:
+      return { text: "Unknown", color: "bg-secondary text-muted-foreground", icon: ShieldQuestion }
+  }
+}
+
 export function SettingsContent() {
   const router = useRouter()
   const { user, setUser, setStats } = useUserStore()
   const { isLoading } = useRequireUser()
-  const [notifications, setNotifications] = useState(true)
-  const [voiceCommands, setVoiceCommands] = useState(true)
-  const [screenOn, setScreenOn] = useState(true)
   const [copied, setCopied] = useState(false)
+
+  // Permission states
+  const [cameraPerm, setCameraPerm] = useState<PermStatus>("unknown")
+  const [micPerm, setMicPerm] = useState<PermStatus>("unknown")
+  const [locationPerm, setLocationPerm] = useState<PermStatus>("unknown")
+
+  // Query permission status
+  const queryPermissions = useCallback(async () => {
+    try {
+      const cam = await navigator.permissions.query({ name: "camera" as PermissionName })
+      setCameraPerm(cam.state as PermStatus)
+      cam.onchange = () => setCameraPerm(cam.state as PermStatus)
+    } catch {
+      setCameraPerm("unknown")
+    }
+
+    try {
+      const mic = await navigator.permissions.query({ name: "microphone" as PermissionName })
+      setMicPerm(mic.state as PermStatus)
+      mic.onchange = () => setMicPerm(mic.state as PermStatus)
+    } catch {
+      setMicPerm("unknown")
+    }
+
+    try {
+      const geo = await navigator.permissions.query({ name: "geolocation" })
+      setLocationPerm(geo.state as PermStatus)
+      geo.onchange = () => setLocationPerm(geo.state as PermStatus)
+    } catch {
+      setLocationPerm("unknown")
+    }
+  }, [])
+
+  useEffect(() => {
+    queryPermissions()
+  }, [queryPermissions])
+
+  async function handleRequestCamera() {
+    if (cameraPerm === "denied") return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      stream.getTracks().forEach((t) => t.stop())
+      setCameraPerm("granted")
+    } catch {
+      setCameraPerm("denied")
+    }
+  }
+
+  async function handleRequestMic() {
+    if (micPerm === "denied") return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach((t) => t.stop())
+      setMicPerm("granted")
+    } catch {
+      setMicPerm("denied")
+    }
+  }
+
+  async function handleRequestLocation() {
+    if (locationPerm === "denied") return
+    try {
+      await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+      })
+      setLocationPerm("granted")
+    } catch {
+      setLocationPerm("denied")
+    }
+  }
 
   const initials = user?.name
     ? user.name
@@ -151,6 +242,10 @@ export function SettingsContent() {
       </div>
     )
   }
+
+  const camBadge = getPermBadge(cameraPerm)
+  const micBadge = getPermBadge(micPerm)
+  const locBadge = getPermBadge(locationPerm)
 
   return (
     <div className="flex min-h-dvh flex-col pb-24">
@@ -241,65 +336,52 @@ export function SettingsContent() {
         </SettingsGroup>
       </div>
 
-      {/* App Settings */}
+      {/* Permissions */}
       <div className="mt-6">
-        <SettingsGroup title="App Settings">
+        <SettingsGroup title="Permissions">
           <SettingsItem
-            icon={Bell}
-            label="Notifications"
-            iconBg="bg-destructive/10"
-            iconColor="text-destructive"
-            trailing="toggle"
-            toggled={notifications}
-            onToggle={() => setNotifications(!notifications)}
+            icon={Camera}
+            label="Camera"
+            iconBg="bg-[hsl(200,70%,50%)]/10"
+            iconColor="text-[hsl(200,70%,50%)]"
+            trailing="badge"
+            badgeText={camBadge.text}
+            badgeColor={camBadge.color}
+            onClick={handleRequestCamera}
           />
           <Divider />
           <SettingsItem
             icon={Mic}
-            label="Voice Commands"
+            label="Microphone"
             iconBg="bg-[hsl(270,60%,55%)]/10"
             iconColor="text-[hsl(270,60%,55%)]"
-            trailing="toggle"
-            toggled={voiceCommands}
-            onToggle={() => setVoiceCommands(!voiceCommands)}
+            trailing="badge"
+            badgeText={micBadge.text}
+            badgeColor={micBadge.color}
+            onClick={handleRequestMic}
           />
           <Divider />
           <SettingsItem
-            icon={Smartphone}
-            label="Keep Screen On During Drive"
-            iconBg="bg-secondary"
-            iconColor="text-foreground"
-            trailing="toggle"
-            toggled={screenOn}
-            onToggle={() => setScreenOn(!screenOn)}
+            icon={MapPin}
+            label="Location"
+            iconBg="bg-primary/10"
+            iconColor="text-primary"
+            trailing="badge"
+            badgeText={locBadge.text}
+            badgeColor={locBadge.color}
+            onClick={handleRequestLocation}
           />
         </SettingsGroup>
+        {(cameraPerm === "denied" || micPerm === "denied" || locationPerm === "denied") && (
+          <p className="mt-2 px-6 text-xs text-muted-foreground">
+            Denied permissions must be changed in your browser settings.
+          </p>
+        )}
       </div>
 
       {/* About */}
       <div className="mt-6">
         <SettingsGroup title="About">
-          <SettingsItem
-            icon={HelpCircle}
-            label="Help & Support"
-            iconBg="bg-primary/10"
-            iconColor="text-primary"
-          />
-          <Divider />
-          <SettingsItem
-            icon={Shield}
-            label="Privacy Policy"
-            iconBg="bg-secondary"
-            iconColor="text-muted-foreground"
-          />
-          <Divider />
-          <SettingsItem
-            icon={FileText}
-            label="Terms of Service"
-            iconBg="bg-secondary"
-            iconColor="text-muted-foreground"
-          />
-          <Divider />
           <SettingsItem
             icon={Info}
             label="App Version"
