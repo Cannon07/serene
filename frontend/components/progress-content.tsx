@@ -11,6 +11,7 @@ import {
   Smile,
   Meh,
   Frown,
+  Star,
   Loader2,
   ChevronDown,
 } from "lucide-react"
@@ -31,18 +32,16 @@ const RESOLUTION_GOAL_LABELS: Record<string, string> = {
   OTHER: "Achieve driving goals",
 }
 
-function getStressLabel(stress: number | null): { label: string; color: string; bg: string } {
-  if (stress === null) return { label: "No data", color: "text-muted-foreground", bg: "bg-secondary" }
-  if (stress <= 0.3) return { label: "Low stress", color: "text-primary", bg: "bg-primary/10" }
-  if (stress <= 0.6) return { label: "Moderate", color: "text-[hsl(35,80%,50%)]", bg: "bg-[hsl(35,80%,50%)]/10" }
-  return { label: "High stress", color: "text-destructive", bg: "bg-destructive/10" }
-}
-
-function getStressIcon(stress: number | null) {
-  if (stress === null) return Meh
-  if (stress <= 0.3) return Smile
-  if (stress <= 0.6) return Meh
-  return Frown
+function getDriveDisplay(rating: number | null, stress: number | null): { label: string; color: string; bg: string; icon: typeof Smile; fill: boolean } {
+  if (rating !== null) {
+    if (rating >= 4) return { label: `${rating}/5 stars`, color: "text-primary", bg: "bg-primary/10", icon: Star, fill: true }
+    if (rating >= 3) return { label: `${rating}/5 stars`, color: "text-[hsl(35,80%,50%)]", bg: "bg-[hsl(35,80%,50%)]/10", icon: Star, fill: true }
+    return { label: `${rating}/5 stars`, color: "text-destructive", bg: "bg-destructive/10", icon: Star, fill: true }
+  }
+  if (stress === null) return { label: "No data", color: "text-muted-foreground", bg: "bg-secondary", icon: Meh, fill: false }
+  if (stress <= 0.3) return { label: "Low stress", color: "text-primary", bg: "bg-primary/10", icon: Smile, fill: false }
+  if (stress <= 0.6) return { label: "Moderate", color: "text-[hsl(35,80%,50%)]", bg: "bg-[hsl(35,80%,50%)]/10", icon: Meh, fill: false }
+  return { label: "High stress", color: "text-destructive", bg: "bg-destructive/10", icon: Frown, fill: false }
 }
 
 function getDriveDate(startedAt: string): string {
@@ -436,8 +435,7 @@ export function ProgressContent() {
           <div className="mt-3 flex flex-col gap-3">
             {completedDrivesList.map((drive) => {
               const stressVal = drive.post_drive_stress ?? drive.pre_drive_stress
-              const { label: stressLabel, color: stressColor, bg: stressBg } = getStressLabel(stressVal)
-              const StressIcon = getStressIcon(stressVal)
+              const { label, color, bg, icon: DriveIcon, fill } = getDriveDisplay(drive.rating, stressVal)
 
               return (
                 <div
@@ -446,10 +444,10 @@ export function ProgressContent() {
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${stressBg}`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}
                     >
-                      <StressIcon
-                        className={`h-5 w-5 ${stressColor}`}
+                      <DriveIcon
+                        className={`h-5 w-5 ${color}${fill ? " fill-current" : ""}`}
                         strokeWidth={1.8}
                       />
                     </div>
@@ -457,8 +455,8 @@ export function ProgressContent() {
                       <p className="truncate text-sm font-semibold text-foreground">
                         {getDriveDate(drive.started_at)} &middot; {drive.destination}
                       </p>
-                      <p className={`mt-0.5 text-xs font-medium ${stressColor}`}>
-                        {stressLabel}
+                      <p className={`mt-0.5 text-xs font-medium ${color}`}>
+                        {label}
                       </p>
                     </div>
                   </div>

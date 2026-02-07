@@ -20,6 +20,7 @@ import {
   MapPin,
   Download,
   X,
+  Star,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { useRequireUser } from "@/hooks/useRequireUser"
@@ -52,18 +53,35 @@ function getGreeting(): string {
   return "Good evening"
 }
 
-function getStressLabel(stress: number | null): string {
+function getDriveLabel(rating: number | null, stress: number | null): string {
+  if (rating !== null) {
+    if (rating >= 4) return `${rating}/5 stars`
+    if (rating >= 3) return `${rating}/5 stars`
+    return `${rating}/5 stars`
+  }
   if (stress === null) return "No data"
   if (stress <= 0.3) return "Low stress"
   if (stress <= 0.6) return "Moderate stress"
   return "High stress"
 }
 
-function getStressIcon(stress: number | null) {
+function getDriveIcon(rating: number | null, stress: number | null) {
+  if (rating !== null) {
+    if (rating >= 4) return Star
+    if (rating >= 3) return Smile
+    return Meh
+  }
   if (stress === null) return Meh
   if (stress <= 0.3) return Smile
   if (stress <= 0.6) return Meh
   return Frown
+}
+
+function getDriveIconStyle(rating: number | null, stress: number | null): { isPositive: boolean; isFill: boolean } {
+  if (rating !== null) {
+    return { isPositive: rating >= 4, isFill: true }
+  }
+  return { isPositive: stress !== null && stress <= 0.3, isFill: false }
 }
 
 function getDriveDuration(startedAt: string, completedAt: string | null): string {
@@ -358,8 +376,8 @@ export function DashboardContent() {
             recentDrives.map((drive) => {
               const stressVal =
                 drive.post_drive_stress ?? drive.pre_drive_stress
-              const StressIcon = getStressIcon(stressVal)
-              const isLowStress = stressVal !== null && stressVal <= 0.3
+              const DriveIcon = getDriveIcon(drive.rating, stressVal)
+              const { isPositive, isFill } = getDriveIconStyle(drive.rating, stressVal)
 
               return (
                 <button
@@ -369,15 +387,15 @@ export function DashboardContent() {
                 >
                   <div
                     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                      isLowStress ? "bg-primary/10" : "bg-accent"
+                      isPositive ? "bg-primary/10" : "bg-accent"
                     }`}
                   >
-                    <StressIcon
+                    <DriveIcon
                       className={`h-5 w-5 ${
-                        isLowStress
+                        isPositive
                           ? "text-primary"
                           : "text-muted-foreground"
-                      }`}
+                      }${isFill ? " fill-current" : ""}`}
                       strokeWidth={1.8}
                     />
                   </div>
@@ -389,7 +407,7 @@ export function DashboardContent() {
                       {formatDistanceToNow(new Date(drive.started_at), {
                         addSuffix: true,
                       })}{" "}
-                      &middot; {getStressLabel(stressVal)} &middot;{" "}
+                      &middot; {getDriveLabel(drive.rating, stressVal)} &middot;{" "}
                       {getDriveDuration(drive.started_at, drive.completed_at)}
                     </p>
                   </div>
