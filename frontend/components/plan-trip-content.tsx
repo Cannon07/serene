@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Loader2,
   AlertCircle,
+  LocateFixed,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,8 @@ export function PlanTripContent() {
   const { setOrigin, setDestination, setRoutes } = useDriveStore()
 
   const [from, setFrom] = useState("Current Location")
+  const [fromCoords, setFromCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [locating, setLocating] = useState(false)
   const [to, setTo] = useState("")
   const [isToFocused, setIsToFocused] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -96,20 +99,61 @@ export function PlanTripContent() {
     setTo(label)
   }
 
+  function handleLocate() {
+    if (!("geolocation" in navigator)) {
+      setError("Geolocation is not supported by your browser.")
+      return
+    }
+
+    setLocating(true)
+    setError(null)
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords
+        setFromCoords({ lat: latitude, lng: longitude })
+        setFrom("Current Location")
+        setLocating(false)
+      },
+      (err) => {
+        setLocating(false)
+        if (err.code === err.PERMISSION_DENIED) {
+          setError("Location permission denied. Please type your starting point.")
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setError("Unable to determine your location. Please type your starting point.")
+        } else {
+          setError("Location request timed out. Please try again or type your starting point.")
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    )
+  }
+
+  function handleFromChange(value: string) {
+    setFrom(value)
+    // If user edits the field manually, clear stored coordinates
+    setFromCoords(null)
+  }
+
   async function handleFindRoutes() {
     if (!user || !to.trim()) return
 
     setSubmitting(true)
     setError(null)
 
+    // Use coordinates if available, otherwise use the text as-is
+    const originValue = fromCoords
+      ? `${fromCoords.lat},${fromCoords.lng}`
+      : from
+
     try {
       const result = await routeService.plan({
         user_id: user.id,
-        origin: from,
+        origin: originValue,
         destination: to.trim(),
       })
 
-      setOrigin(from)
+      setOrigin(originValue)
       setDestination(to.trim())
       setRoutes(result.routes)
       router.push("/routes")
@@ -169,11 +213,27 @@ export function PlanTripContent() {
               <input
                 type="text"
                 value={from}
-                onChange={(e) => setFrom(e.target.value)}
+                onChange={(e) => handleFromChange(e.target.value)}
                 className="mt-0.5 w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
                 placeholder="Enter starting point"
               />
             </div>
+            <button
+              type="button"
+              onClick={handleLocate}
+              disabled={locating}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-accent disabled:opacity-50"
+              aria-label="Use current location"
+            >
+              {locating ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <LocateFixed
+                  className={`h-4 w-4 ${fromCoords ? "text-primary" : "text-muted-foreground"}`}
+                  strokeWidth={2}
+                />
+              )}
+            </button>
           </div>
 
           {/* Divider with dots */}
