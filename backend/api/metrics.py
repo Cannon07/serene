@@ -1,5 +1,5 @@
 """
-Metrics API for dashboard aggregations.
+Metrics API for dashboard aggregations and evaluation summaries.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +7,7 @@ from sqlalchemy import select, func
 
 from database.config import get_db
 from models.database import Drive, DriveEvent, User
+from config.opik_config import is_opik_configured
 
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
@@ -174,3 +175,83 @@ async def get_event_summary(db: AsyncSession = Depends(get_db)):
         "events": events,
         "total": sum(events.values()),
     }
+
+
+@router.get("/evaluations/summary")
+async def get_evaluation_summary():
+    """
+    Get an overview of Opik evaluation health.
+
+    Returns available metrics, datasets, experiments, and their status.
+    Useful for demos and the README to show evaluation coverage.
+    """
+    if not is_opik_configured():
+        return {
+            "opik_configured": False,
+            "message": "Opik is not configured. Set OPIK_API_KEY and OPIK_WORKSPACE.",
+        }
+
+    try:
+        import opik
+        client = opik.Opik()
+
+        # List datasets
+        datasets = []
+        for name in [
+            "serene-intervention-scenarios",
+            "serene-safety-edge-cases",
+            "serene-debrief-scenarios",
+        ]:
+            try:
+                ds = client.get_dataset(name)
+                items = ds.get_items()
+                datasets.append({
+                    "name": name,
+                    "item_count": len(items),
+                    "status": "populated" if items else "empty",
+                })
+            except Exception:
+                datasets.append({
+                    "name": name,
+                    "item_count": 0,
+                    "status": "not_created",
+                })
+
+        return {
+            "opik_configured": True,
+            "metrics": {
+                "custom_metrics": [
+                    "StressResponseMatch (deterministic)",
+                    "Safety (keyword + LLM judge)",
+                    "InterventionQuality (LLM judge)",
+                    "RAGGroundedness (hallucination check)",
+                    "ToneEmpathy (LLM judge)",
+                ],
+                "total": 5,
+            },
+            "datasets": datasets,
+            "experiments": [
+                {
+                    "name": "intervention-quality-v1",
+                    "description": "CalmAgent scored with all 5 metrics across 20 scenarios",
+                },
+                {
+                    "name": "model-comparison-gpt4o / gpt4o-mini",
+                    "description": "Side-by-side quality comparison of GPT-4o vs GPT-4o-mini",
+                },
+                {
+                    "name": "debrief-encouragement-v1",
+                    "description": "DebriefAgent encouragement quality with ToneEmpathy + Safety",
+                },
+            ],
+            "online_scoring": {
+                "enabled": True,
+                "metrics": ["StressResponseMatch", "SafetyKeywordCheck"],
+                "description": "Fast deterministic scoring runs on every intervention as a background task",
+            },
+        }
+    except Exception as e:
+        return {
+            "opik_configured": True,
+            "error": f"Could not fetch evaluation data: {str(e)}",
+        }

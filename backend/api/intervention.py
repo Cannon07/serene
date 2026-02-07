@@ -1,6 +1,7 @@
 """
 Intervention API endpoints for calming interventions.
 """
+import asyncio
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from models.schemas import InterventionRequest, InterventionResponse, RerouteOpt
 from agents.calm_agent import CalmAgent
 from agents.reroute_agent import RerouteAgent
 from agents.emotion_agent import InterventionType
+from evaluations.online.intervention_scorer import score_intervention_async
 
 
 router = APIRouter(prefix="/api/intervention", tags=["intervention"])
@@ -216,6 +218,13 @@ async def decide_intervention(
             # Increment interventions_triggered counter
             drive.interventions_triggered += 1
             await db.commit()
+
+        # Fire-and-forget: score the intervention with fast deterministic metrics
+        asyncio.create_task(score_intervention_async(
+            intervention_type=result["intervention_type"],
+            stress_score=result["stress_score"],
+            message=result.get("message", ""),
+        ))
 
         return InterventionResponse(
             intervention_type=result["intervention_type"],
