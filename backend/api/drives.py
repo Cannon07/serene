@@ -113,6 +113,7 @@ async def start_drive(
         destination=request.destination,
         selected_route_type=request.selected_route_type,
         pre_drive_stress=request.pre_drive_stress,
+        maps_url=request.maps_url,
     )
     db.add(drive)
     await db.commit()
@@ -126,6 +127,7 @@ async def start_drive(
         destination=drive.destination,
         selected_route_type=drive.selected_route_type,
         pre_drive_stress=drive.pre_drive_stress,
+        maps_url=drive.maps_url,
         status="IN_PROGRESS",
     )
 
@@ -309,6 +311,7 @@ async def get_active_drive(
         destination=drive.destination,
         selected_route_type=drive.selected_route_type,
         pre_drive_stress=drive.pre_drive_stress,
+        maps_url=drive.maps_url,
         events_count=len(drive.events),
         latest_stress_level=latest_stress,
     )

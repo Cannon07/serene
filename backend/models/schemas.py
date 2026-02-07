@@ -278,8 +278,8 @@ class DriveStartResponse(BaseModel):
     origin: str
     destination: str
     selected_route_type: str
-    pre_drive_stress: Optional[float]
-    maps_url: Optional[str]
+    pre_drive_stress: Optional[float] = None
+    maps_url: Optional[str] = None
     status: str  # IN_PROGRESS or COMPLETED
 
 
@@ -329,8 +329,8 @@ class ActiveDriveResponse(BaseModel):
     origin: str
     destination: str
     selected_route_type: str
-    pre_drive_stress: Optional[float]
-    maps_url: Optional[str]
+    pre_drive_stress: Optional[float] = None
+    maps_url: Optional[str] = None
     events_count: int
     latest_stress_level: Optional[float]
 
