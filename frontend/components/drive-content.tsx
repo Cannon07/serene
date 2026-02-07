@@ -9,6 +9,8 @@ import {
   Shield,
   Loader2,
   AlertCircle,
+  Mic,
+  MicOff,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRequireUser } from "@/hooks/useRequireUser"
@@ -17,10 +19,14 @@ import { useInterventionStore } from "@/stores/interventionStore"
 import { driveService } from "@/services/driveService"
 import { emotionService } from "@/services/emotionService"
 import { interventionService } from "@/services/interventionService"
+import { voiceService } from "@/services/voiceService"
 import { useWakeLock } from "@/hooks/useWakeLock"
 import { useGeolocation } from "@/hooks/useGeolocation"
 import { useMicrophone } from "@/hooks/useMicrophone"
+import { useVoiceRecognition } from "@/hooks/useVoiceRecognition"
+import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis"
 import { StressIntervention } from "@/components/stress-intervention"
+import type { InterventionResponse } from "@/types/intervention"
 
 export function DriveContent() {
   const router = useRouter()
@@ -44,6 +50,13 @@ export function DriveContent() {
   const [error, setError] = useState<string | null>(null)
   const startedRef = useRef(false)
   const analyzingRef = useRef(false)
+  const voiceActiveRef = useRef(false)
+  const processingVoiceRef = useRef(false)
+  const handleEndDriveRef = useRef(() => {})
+
+  // Voice recognition + TTS
+  const voice = useVoiceRecognition()
+  const tts = useSpeechSynthesis()
 
   // Keep screen on
   const wakeLock = useWakeLock()
@@ -97,8 +110,8 @@ export function DriveContent() {
     if (!activeDrive || !mic.isRecording || !user) return
 
     const interval = setInterval(async () => {
-      // Skip if already analyzing or intervention is showing
-      if (analyzingRef.current || useInterventionStore.getState().isVisible) return
+      // Skip if already analyzing, intervention is showing, or voice command is active
+      if (analyzingRef.current || voiceActiveRef.current || useInterventionStore.getState().isVisible) return
       analyzingRef.current = true
 
       try {
@@ -128,7 +141,7 @@ export function DriveContent() {
       } finally {
         analyzingRef.current = false
       }
-    }, 10_000) // 10s for testing — increase to 30s for production
+    }, 30_000) // 10s for testing — increase to 30s for production
 
     return () => clearInterval(interval)
     // Only re-create interval when these key booleans change
@@ -214,14 +227,106 @@ export function DriveContent() {
     return () => clearInterval(timer)
   }, [activeDrive])
 
+  // Toggle voice recognition
+  const handleVoiceToggle = useCallback(() => {
+    if (voice.isListening) {
+      voice.stopListening()
+    } else {
+      voiceActiveRef.current = true
+      voice.startListening()
+    }
+  }, [voice.isListening, voice.startListening, voice.stopListening])
+
+  // Process voice transcript → send command → handle response
+  useEffect(() => {
+    if (!voice.transcript || !activeDrive || !user || processingVoiceRef.current) return
+    processingVoiceRef.current = true
+
+    async function processCommand() {
+      try {
+        const { currentLocation, destination: dest, selectedRoute: route } = useDriveStore.getState()
+
+        const response = await voiceService.sendCommand({
+          user_id: user!.id,
+          drive_id: activeDrive!.id,
+          transcribed_text: voice.transcript,
+          context: "DURING_DRIVE",
+          current_location: currentLocation ?? undefined,
+          destination: activeDrive!.destination || dest || undefined,
+          current_route_calm_score: route?.calm_score,
+        })
+
+        // Determine if an intervention overlay will handle TTS
+        const willShowIntervention =
+          (response.action === "TRIGGER_INTERVENTION" && response.intervention) ||
+          (response.action === "FIND_SAFE_SPOT" && response.intervention)
+
+        // Only speak here if no intervention overlay will speak it
+        if (response.speech_response && !willShowIntervention) {
+          tts.speak(response.speech_response)
+        }
+
+        // Handle actions
+        if (response.action === "TRIGGER_INTERVENTION" && response.intervention) {
+          const mapped: InterventionResponse = {
+            intervention_type: response.intervention.intervention_type as string ?? "BREATHING",
+            stress_level: response.intervention.stress_level as string ?? "HIGH",
+            stress_score: (response.intervention.stress_score as number) ?? 0.7,
+            message: response.speech_response,
+            breathing_content: response.intervention.breathing_content as InterventionResponse["breathing_content"],
+            grounding_content: response.intervention.grounding_content as InterventionResponse["grounding_content"],
+            pull_over_guidance: response.intervention.pull_over_guidance as string[],
+            reroute_available: false,
+            sources: (response.intervention.sources as string[]) ?? [],
+          }
+          useInterventionStore.getState().setActiveIntervention(mapped)
+        } else if (response.action === "FIND_ROUTE" && response.reroute) {
+          const reroute = response.reroute
+          if (reroute.suggested_route) {
+            useDriveStore.getState().setRerouteOption(reroute.suggested_route as never)
+          }
+        } else if (response.action === "FIND_SAFE_SPOT" && response.intervention) {
+          const mapped: InterventionResponse = {
+            intervention_type: "PULL_OVER",
+            stress_level: "CRITICAL",
+            stress_score: 0.85,
+            message: response.speech_response,
+            pull_over_guidance: response.intervention.pull_over_guidance as string[] ?? [
+              "Signal right and slow down gradually",
+              "Look for a safe parking lot or wide shoulder",
+              "Turn on your hazard lights",
+              "Take deep breaths once stopped",
+            ],
+            reroute_available: false,
+            sources: [],
+          }
+          useInterventionStore.getState().setActiveIntervention(mapped)
+        } else if (response.action === "START_DEBRIEF") {
+          // Reuse the same end-drive flow as the button
+          handleEndDriveRef.current()
+        }
+      } catch {
+        // Voice command failed — silently ignore
+      } finally {
+        voiceActiveRef.current = false
+        processingVoiceRef.current = false
+      }
+    }
+
+    processCommand()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.transcript])
+
   const handleEndDrive = useCallback(async () => {
     if (!activeDrive || ending) return
 
     setEnding(true)
     setError(null)
 
-    // Stop audio monitoring
+    // Stop audio monitoring, voice, and TTS
     mic.stopStream()
+    voice.stopListening()
+    tts.stop()
     dismissIntervention()
 
     try {
@@ -234,6 +339,7 @@ export function DriveContent() {
       setEnding(false)
     }
   }, [activeDrive, ending, setDriveEndResponse, router, mic, dismissIntervention, setActiveDrive])
+  handleEndDriveRef.current = handleEndDrive
 
   // Build Maps URL: prefer selectedRoute, then activeDrive.maps_url, then generic directions
   const mapsUrl = selectedRoute?.maps_url
@@ -344,6 +450,32 @@ export function DriveContent() {
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Voice command button */}
+      <div className="flex flex-col items-center gap-2 px-6 pb-6">
+        <button
+          type="button"
+          onClick={handleVoiceToggle}
+          disabled={processingVoiceRef.current}
+          className={`flex h-16 w-16 items-center justify-center rounded-full transition-all ${
+            voice.isListening
+              ? "bg-red-500 shadow-lg shadow-red-500/40 animate-pulse"
+              : "bg-white/10 border border-white/20 hover:bg-white/15"
+          }`}
+          aria-label={voice.isListening ? "Stop listening" : "Voice command"}
+        >
+          {voice.isListening ? (
+            <Mic className="h-6 w-6 text-white" strokeWidth={2} />
+          ) : (
+            <MicOff className="h-6 w-6 text-[hsl(140,10%,60%)]" strokeWidth={2} />
+          )}
+        </button>
+        <p className="text-xs font-medium text-[hsl(140,10%,50%)]">
+          {voice.isListening
+            ? "Listening..."
+            : "Tap to speak"}
+        </p>
+      </div>
 
       {/* Destination card */}
       <div className="px-6">
