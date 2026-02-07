@@ -13,9 +13,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { useRequireUser } from "@/hooks/useRequireUser"
 import { useDriveStore } from "@/stores/driveStore"
+import { useInterventionStore } from "@/stores/interventionStore"
 import { driveService } from "@/services/driveService"
+import { emotionService } from "@/services/emotionService"
+import { interventionService } from "@/services/interventionService"
 import { useWakeLock } from "@/hooks/useWakeLock"
 import { useGeolocation } from "@/hooks/useGeolocation"
+import { useMicrophone } from "@/hooks/useMicrophone"
+import { StressIntervention } from "@/components/stress-intervention"
 
 export function DriveContent() {
   const router = useRouter()
@@ -30,11 +35,15 @@ export function DriveContent() {
   const setDriveEndResponse = useDriveStore((s) => s.setDriveEndResponse)
   const setCurrentLocation = useDriveStore((s) => s.setCurrentLocation)
 
+  const interventionVisible = useInterventionStore((s) => s.isVisible)
+  const dismissIntervention = useInterventionStore((s) => s.dismiss)
+
   const [elapsed, setElapsed] = useState(0)
   const [starting, setStarting] = useState(false)
   const [ending, setEnding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const startedRef = useRef(false)
+  const analyzingRef = useRef(false)
 
   // Keep screen on
   const wakeLock = useWakeLock()
@@ -42,17 +51,36 @@ export function DriveContent() {
   // Track location
   const geo = useGeolocation()
 
-  // Activate wake lock + geolocation on mount
+  // Audio monitoring
+  const mic = useMicrophone()
+
+  // Stable ref for mic methods so the interval doesn't reset on every render
+  const micRef = useRef(mic)
+  micRef.current = mic
+
+  // Activate wake lock + geolocation + microphone on mount
   useEffect(() => {
     wakeLock.request()
     geo.startWatching()
+    mic.requestAccess().catch(() => {
+      // Mic permission denied — monitoring disabled, drive still works
+    })
 
     return () => {
       wakeLock.release()
       geo.stopWatching()
+      mic.stopStream()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Start recording once mic stream is ready
+  useEffect(() => {
+    if (mic.stream && !mic.isRecording) {
+      mic.startRecording()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mic.stream])
 
   // Sync geolocation to store
   useEffect(() => {
@@ -63,6 +91,48 @@ export function DriveContent() {
       })
     }
   }, [geo.position, setCurrentLocation])
+
+  // Audio stress monitoring loop — every 10s grab a chunk + analyze
+  useEffect(() => {
+    if (!activeDrive || !mic.isRecording || !user) return
+
+    const interval = setInterval(async () => {
+      // Skip if already analyzing or intervention is showing
+      if (analyzingRef.current || useInterventionStore.getState().isVisible) return
+      analyzingRef.current = true
+
+      try {
+        const chunk = await micRef.current.getChunk()
+        if (chunk.size === 0) return
+
+        const audioResult = await emotionService.analyzeAudio(chunk, activeDrive.id)
+
+        if (audioResult.trigger_intervention) {
+          // Read latest values from stores at call time
+          const { currentLocation, destination: dest, selectedRoute: route } = useDriveStore.getState()
+
+          const intervention = await interventionService.decide({
+            user_id: user.id,
+            drive_id: activeDrive.id,
+            stress_score: audioResult.stress_score,
+            stress_level: audioResult.stress_level as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+            current_location: currentLocation ?? undefined,
+            destination: activeDrive.destination || dest || undefined,
+            current_route_calm_score: route?.calm_score,
+          })
+
+          useInterventionStore.getState().setActiveIntervention(intervention)
+        }
+      } catch {
+        // Audio analysis failed — skip this cycle silently
+      } finally {
+        analyzingRef.current = false
+      }
+    }, 10_000) // 10s for testing — increase to 30s for production
+
+    return () => clearInterval(interval)
+    // Only re-create interval when these key booleans change
+  }, [activeDrive, mic.isRecording, user])
 
   // Start drive or resume existing active drive on mount (once)
   useEffect(() => {
@@ -150,6 +220,10 @@ export function DriveContent() {
     setEnding(true)
     setError(null)
 
+    // Stop audio monitoring
+    mic.stopStream()
+    dismissIntervention()
+
     try {
       const result = await driveService.end(activeDrive.id)
       setDriveEndResponse(result)
@@ -159,7 +233,7 @@ export function DriveContent() {
       setError("Failed to end drive. Please try again.")
       setEnding(false)
     }
-  }, [activeDrive, ending, setDriveEndResponse, router])
+  }, [activeDrive, ending, setDriveEndResponse, router, mic, dismissIntervention, setActiveDrive])
 
   // Build Maps URL: prefer selectedRoute, then activeDrive.maps_url, then generic directions
   const mapsUrl = selectedRoute?.maps_url
@@ -331,6 +405,11 @@ export function DriveContent() {
           {ending ? "Ending Drive..." : "End Drive"}
         </button>
       </div>
+
+      {/* Stress intervention overlay */}
+      {interventionVisible && (
+        <StressIntervention onDismiss={dismissIntervention} />
+      )}
     </div>
   )
 }

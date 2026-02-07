@@ -23,6 +23,7 @@ export const voiceService = {
     formData.append('voice', voice);
     return api
       .post('/api/voice/speak', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
         responseType: 'blob',
       })
       .then((r) => r.data);
