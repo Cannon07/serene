@@ -276,14 +276,33 @@ export function DriveContent() {
             breathing_content: response.intervention.breathing_content as InterventionResponse["breathing_content"],
             grounding_content: response.intervention.grounding_content as InterventionResponse["grounding_content"],
             pull_over_guidance: response.intervention.pull_over_guidance as string[],
-            reroute_available: false,
+            reroute_available: !!(response.intervention.reroute_available),
+            reroute_option: response.intervention.reroute_option as InterventionResponse["reroute_option"],
             sources: (response.intervention.sources as string[]) ?? [],
           }
           useInterventionStore.getState().setActiveIntervention(mapped)
         } else if (response.action === "FIND_ROUTE" && response.reroute) {
           const reroute = response.reroute
           if (reroute.suggested_route) {
-            useDriveStore.getState().setRerouteOption(reroute.suggested_route as never)
+            const suggested = reroute.suggested_route as Record<string, unknown>
+            useDriveStore.getState().setRerouteOption(suggested as never)
+            // Show reroute option via the intervention overlay
+            const rerouteIntervention: InterventionResponse = {
+              intervention_type: "REROUTE",
+              stress_level: "MEDIUM",
+              stress_score: 0.5,
+              message: response.speech_response,
+              reroute_available: true,
+              reroute_option: {
+                current_route_calm_score: (reroute.current_route as Record<string, unknown>)?.calm_score as number ?? 0,
+                alternative_route_name: suggested.name as string ?? "Calmer Route",
+                alternative_route_calm_score: suggested.calm_score as number ?? 0,
+                extra_time_minutes: suggested.extra_time_minutes as number ?? 0,
+                maps_url: suggested.maps_url as string ?? "",
+              },
+              sources: [],
+            }
+            useInterventionStore.getState().setActiveIntervention(rerouteIntervention)
           }
         } else if (response.action === "FIND_SAFE_SPOT" && response.intervention) {
           const mapped: InterventionResponse = {
@@ -297,7 +316,8 @@ export function DriveContent() {
               "Turn on your hazard lights",
               "Take deep breaths once stopped",
             ],
-            reroute_available: false,
+            reroute_available: !!(response.intervention.reroute_available),
+            reroute_option: response.intervention.reroute_option as InterventionResponse["reroute_option"],
             sources: [],
           }
           useInterventionStore.getState().setActiveIntervention(mapped)
@@ -335,8 +355,36 @@ export function DriveContent() {
       setActiveDrive(null) // Clear so next visit to /drive starts fresh
       router.push("/drive/summary")
     } catch {
-      setError("Failed to end drive. Please try again.")
-      setEnding(false)
+      // Drive may already be ended (e.g., backend ended it via voice command)
+      // Fetch drive details and still navigate to summary
+      try {
+        const detail = await driveService.get(activeDrive.id)
+        const startTs = detail.started_at.endsWith("Z") ? detail.started_at : detail.started_at + "Z"
+        const endTs = detail.completed_at
+          ? (detail.completed_at.endsWith("Z") ? detail.completed_at : detail.completed_at + "Z")
+          : null
+        const durationMs = endTs
+          ? new Date(endTs).getTime() - new Date(startTs).getTime()
+          : Date.now() - new Date(startTs).getTime()
+
+        setDriveEndResponse({
+          id: detail.id,
+          completed_at: detail.completed_at ?? new Date().toISOString(),
+          duration_minutes: Math.round(durationMs / 60000),
+          summary: {
+            events_count: detail.events.length,
+            interventions_triggered: detail.interventions_triggered,
+            reroutes_offered: detail.reroutes_offered,
+            reroutes_accepted: detail.reroutes_accepted,
+            avg_stress_level: null,
+          },
+        })
+        setActiveDrive(null)
+        router.push("/drive/summary")
+      } catch {
+        setError("Failed to end drive. Please try again.")
+        setEnding(false)
+      }
     }
   }, [activeDrive, ending, setDriveEndResponse, router, mic, dismissIntervention, setActiveDrive])
   handleEndDriveRef.current = handleEndDrive
