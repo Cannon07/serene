@@ -1,10 +1,23 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, User, Video, MessageCircle, Loader2 } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  User,
+  Video,
+  VideoOff,
+  MessageCircle,
+  Loader2,
+  AlertCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRequireUser } from "@/hooks/useRequireUser"
+import { useCamera } from "@/hooks/useCamera"
+import { useDriveStore } from "@/stores/driveStore"
+import { emotionService } from "@/services/emotionService"
+import { debriefService } from "@/services/debriefService"
 
 const PROMPTS = [
   "What was hardest?",
@@ -14,11 +27,36 @@ const PROMPTS = [
 
 export function DebriefContent() {
   const router = useRouter()
-  const { isLoading } = useRequireUser()
-  const [isRecording, setIsRecording] = useState(false)
+  const { user, isLoading: authLoading } = useRequireUser()
+  const { stream, isRecording, requestAccess, startRecording, stopRecording, stopStream } =
+    useCamera()
+
+  const driveEndResponse = useDriveStore((s) => s.driveEndResponse)
+  const setDebriefResponse = useDriveStore((s) => s.setDebriefResponse)
+
+  const videoRef = useRef<HTMLVideoElement>(null)
   const [seconds, setSeconds] = useState(0)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
   const [activePrompt, setActivePrompt] = useState<string | null>(null)
 
+  // Bind stream to video element
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
+
+  // Cleanup stream on unmount
+  useEffect(() => {
+    return () => {
+      stopStream()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Recording timer
   useEffect(() => {
     if (!isRecording) return
     const interval = setInterval(() => {
@@ -33,12 +71,51 @@ export function DebriefContent() {
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }, [])
 
+  async function handleRequestCamera() {
+    setCameraError(null)
+    try {
+      await requestAccess()
+    } catch {
+      setCameraError(
+        "Camera access denied. Please allow camera and microphone access in your browser settings."
+      )
+    }
+  }
+
   function handleStartRecording() {
-    setIsRecording(true)
+    setApiError(null)
+    startRecording()
     setSeconds(0)
   }
 
-  if (isLoading) {
+  async function handleStopAndAnalyze() {
+    if (!user || !driveEndResponse) return
+    setAnalyzing(true)
+    setApiError(null)
+
+    try {
+      const blob = await stopRecording()
+      stopStream()
+
+      // Analyze post-drive video for stress score
+      const videoResult = await emotionService.analyzeVideo(blob, "POST_DRIVE")
+
+      // Process debrief with the post-drive stress score
+      const debrief = await debriefService.process({
+        user_id: user.id,
+        drive_id: driveEndResponse.id,
+        post_drive_stress_score: videoResult.stress_score,
+      })
+
+      setDebriefResponse(debrief)
+      router.push("/debrief/results")
+    } catch {
+      setAnalyzing(false)
+      setApiError("Analysis failed. Please try again.")
+    }
+  }
+
+  if (authLoading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -52,7 +129,10 @@ export function DebriefContent() {
       <div className="flex items-center gap-3 px-6 pt-14">
         <button
           type="button"
-          onClick={() => router.push("/drive/summary")}
+          onClick={() => {
+            stopStream()
+            router.push("/drive/summary")
+          }}
           className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-foreground transition-colors hover:bg-accent"
           aria-label="Go back"
         >
@@ -83,17 +163,48 @@ export function DebriefContent() {
       {/* Camera preview area */}
       <div className="mt-5 px-6">
         <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-2xl bg-foreground/90">
-          {/* User silhouette */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted-foreground/20">
-              <User className="h-12 w-12 text-muted-foreground/40" strokeWidth={1.4} />
+          {stream ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="h-full w-full object-cover"
+              style={{ transform: "scaleX(-1)" }}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              {cameraError ? (
+                <>
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-destructive/20">
+                    <VideoOff
+                      className="h-12 w-12 text-destructive/60"
+                      strokeWidth={1.4}
+                    />
+                  </div>
+                  <p className="max-w-[240px] text-center text-sm text-destructive/70">
+                    {cameraError}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted-foreground/20">
+                    <User
+                      className="h-12 w-12 text-muted-foreground/40"
+                      strokeWidth={1.4}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRequestCamera}
+                    className="rounded-xl bg-primary/90 px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary"
+                  >
+                    Enable Camera
+                  </button>
+                </>
+              )}
             </div>
-            {!isRecording && (
-              <p className="text-sm text-muted-foreground/50">
-                Tap record to begin
-              </p>
-            )}
-          </div>
+          )}
 
           {/* Recording indicator */}
           {isRecording && (
@@ -108,8 +219,18 @@ export function DebriefContent() {
             </div>
           )}
 
+          {/* Analyzing overlay */}
+          {analyzing && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-foreground/80 backdrop-blur-sm">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="text-sm font-semibold text-primary-foreground">
+                Analyzing your debrief...
+              </p>
+            </div>
+          )}
+
           {/* Record button overlay */}
-          {!isRecording && (
+          {stream && !isRecording && !analyzing && (
             <button
               type="button"
               onClick={handleStartRecording}
@@ -121,6 +242,19 @@ export function DebriefContent() {
           )}
         </div>
       </div>
+
+      {/* Error message */}
+      {apiError && (
+        <div className="mt-3 px-6">
+          <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3">
+            <AlertCircle
+              className="h-4 w-4 shrink-0 text-destructive"
+              strokeWidth={1.8}
+            />
+            <p className="text-sm text-destructive">{apiError}</p>
+          </div>
+        </div>
+      )}
 
       {/* Prompt suggestion chips */}
       <div className="mt-4 flex gap-2 overflow-x-auto px-6 pb-1">
@@ -145,9 +279,9 @@ export function DebriefContent() {
 
       {/* Bottom buttons */}
       <div className="mt-6 flex flex-col gap-3 px-6 pb-10">
-        {isRecording ? (
+        {isRecording && !analyzing ? (
           <Button
-            onClick={() => router.push("/debrief/results")}
+            onClick={handleStopAndAnalyze}
             className="h-14 w-full rounded-2xl text-base font-semibold shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30"
             size="lg"
           >
@@ -164,7 +298,10 @@ export function DebriefContent() {
         )}
         <button
           type="button"
-          onClick={() => router.push("/dashboard")}
+          onClick={() => {
+            stopStream()
+            router.push("/dashboard")
+          }}
           className="flex items-center justify-center gap-1 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           Skip Debrief

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DriveStartResponse, DriveEndResponse } from '../types/drive';
+import { DebriefResponse } from '../types/debrief';
 import { VideoAnalysisResult } from '../types/emotion';
 import { Route, RoutePrepareResponse } from '../types/route';
 import { RerouteOption } from '../types/reroute';
@@ -18,6 +19,7 @@ interface DriveState {
   isListening: boolean;
   lastVoiceResponse: VoiceCommandResponse | null;
   rerouteOption: RerouteOption | null;
+  debriefResponse: DebriefResponse | null;
   setOrigin: (v: string) => void;
   setDestination: (v: string) => void;
   setRoutes: (v: Route[]) => void;
@@ -30,6 +32,7 @@ interface DriveState {
   setIsListening: (v: boolean) => void;
   setLastVoiceResponse: (v: VoiceCommandResponse | null) => void;
   setRerouteOption: (v: RerouteOption | null) => void;
+  setDebriefResponse: (v: DebriefResponse | null) => void;
   clear: () => void;
 }
 
@@ -46,6 +49,7 @@ export const useDriveStore = create<DriveState>((set) => ({
   isListening: false,
   lastVoiceResponse: null,
   rerouteOption: null,
+  debriefResponse: null,
   setOrigin: (origin) => set({ origin }),
   setDestination: (destination) => set({ destination }),
   setRoutes: (routes) => set({ routes }),
@@ -58,5 +62,6 @@ export const useDriveStore = create<DriveState>((set) => ({
   setIsListening: (isListening) => set({ isListening }),
   setLastVoiceResponse: (lastVoiceResponse) => set({ lastVoiceResponse }),
   setRerouteOption: (rerouteOption) => set({ rerouteOption }),
-  clear: () => set({ origin: '', destination: '', routes: [], selectedRoute: null, prepareData: null, checkinResult: null, activeDrive: null, driveEndResponse: null, currentLocation: null, isListening: false, lastVoiceResponse: null, rerouteOption: null }),
+  setDebriefResponse: (debriefResponse) => set({ debriefResponse }),
+  clear: () => set({ origin: '', destination: '', routes: [], selectedRoute: null, prepareData: null, checkinResult: null, activeDrive: null, driveEndResponse: null, currentLocation: null, isListening: false, lastVoiceResponse: null, rerouteOption: null, debriefResponse: null }),
 }));
