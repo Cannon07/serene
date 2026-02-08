@@ -34,11 +34,11 @@ Serene is an end-to-end AI companion that supports anxious drivers **before, dur
 - **Personalized preparation** — Breathing exercises and tips tailored to your triggers
 
 <p align="center">
-  <img src="docs/screenshots/checkin.jpg" alt="Check-in" width="250" />
-  &nbsp;&nbsp;
   <img src="docs/screenshots/route-comparison.jpg" alt="Route Comparison" width="250" />
   &nbsp;&nbsp;
-  <img src="docs/screenshots/dashboard.jpg" alt="Dashboard" width="250" />
+  <img src="docs/screenshots/checkin.jpg" alt="Check-in" width="250" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/checkin-results.jpg" alt="Dashboard" width="250" />
 </p>
 
 ### During Drive
@@ -52,6 +52,8 @@ Serene is an end-to-end AI companion that supports anxious drivers **before, dur
   <img src="docs/screenshots/active-drive.jpg" alt="Active Drive" width="250" />
   &nbsp;&nbsp;
   <img src="docs/screenshots/intervention.jpg" alt="Intervention" width="250" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/request-reroute.jpg" alt="Rerouting" width="250" />
 </p>
 
 ### Post-Drive
@@ -61,6 +63,8 @@ Serene is an end-to-end AI companion that supports anxious drivers **before, dur
 
 <p align="center">
   <img src="docs/screenshots/debrief.jpg" alt="Debrief" width="250" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/debrief-results.jpg" alt="Debrief" width="250" />
 </p>
 
 ### Safety First
@@ -79,20 +83,20 @@ Serene **never** recommends medication, **never** diagnoses conditions, and **al
 └──────────────────────────┬──────────────────────────────────────────┘
                            │ REST API
 ┌──────────────────────────▼──────────────────────────────────────────┐
-│                     Backend (FastAPI)                                │
+│                     Backend (FastAPI)                               │
 │                                                                     │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
-│  │  Route    │ │ Emotion  │ │  Calm    │ │ Reroute  │ │ Debrief  │  │
-│  │  Agent   │ │  Agent   │ │  Agent   │ │  Agent   │ │  Agent   │  │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘  │
-│       │             │            │             │            │        │
-│  ┌────▼─────────────▼────────────▼─────────────▼────────────▼────┐  │
-│  │                    Opik Observability Layer                    │  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │  Route   │ │  Emotion │ │  Calm    │ │ Reroute  │ │ Debrief  │   │
+│  │  Agent   │ │  Agent   │ │  Agent   │ │  Agent   │ │  Agent   │   │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬────┘   │
+│       │            │            │            │             │        │
+│  ┌────▼────────────▼────────────▼────────────▼─────────────▼─────┐  │
+│  │                    Opik Observability Layer                   │  │
 │  │          Tracing · Evaluation · Experiments · Scoring         │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 └──────────┬──────────┬──────────┬──────────┬─────────────────────────┘
            │          │          │          │
-     ┌─────▼──┐ ┌─────▼──┐ ┌────▼───┐ ┌───▼────┐
+     ┌─────▼──┐ ┌─────▼──┐ ┌─────▼──┐ ┌─────▼──┐
      │ OpenAI │ │Hume AI │ │Google  │ │ChromaDB│
      │GPT-4o  │ │Emotion │ │ Maps   │ │  RAG   │
      │Whisper │ │  API   │ │  API   │ │        │
