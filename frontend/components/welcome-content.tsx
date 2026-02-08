@@ -107,12 +107,12 @@ export function WelcomeContent() {
           </p>
         </div>
 
-        {/* Trust indicators */}
+        {/* Trust indicators
         <div className="mt-2 flex items-center gap-4">
           {[
-            { value: "10k+", label: "Drivers" },
-            { value: "4.8", label: "Rating" },
-            { value: "Free", label: "To start" },
+            { value: "5", label: "AI Agents" },
+            { value: "Real-time", label: "Support" },
+            { value: "Voice", label: "Enabled" },
           ].map((stat) => (
             <div key={stat.label} className="flex flex-col items-center gap-0.5">
               <span className="text-sm font-semibold text-foreground">
@@ -121,7 +121,7 @@ export function WelcomeContent() {
               <span className="text-xs text-muted-foreground">{stat.label}</span>
             </div>
           ))}
-        </div>
+        </div> */}
       </div>
 
       {/* Bottom spacer */}
