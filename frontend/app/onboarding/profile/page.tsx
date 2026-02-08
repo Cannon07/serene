@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function ProfilePage() {
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-[390px] bg-background">
+    <main className="mx-auto min-h-dvh w-full max-w-[425px] bg-background">
       <ProfileSetup />
     </main>
   )

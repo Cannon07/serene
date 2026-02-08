@@ -169,7 +169,7 @@ export function WelcomeContent() {
 
           {/* Modal card */}
           <div
-            className={`relative z-10 mx-auto w-full max-w-[390px] transform transition-transform duration-300 ease-out ${
+            className={`relative z-10 mx-auto w-full max-w-[425px] transform transition-transform duration-300 ease-out ${
               sheetVisible ? "translate-y-0" : "translate-y-full"
             }`}
           >

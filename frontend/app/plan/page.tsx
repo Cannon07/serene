@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react"
 
 export default function PlanPage() {
   return (
-    <main className="relative mx-auto min-h-dvh w-full max-w-[390px] bg-background">
+    <main className="relative mx-auto min-h-dvh w-full max-w-[425px] bg-background">
       <Suspense
         fallback={
           <div className="flex min-h-dvh items-center justify-center">

@@ -2,7 +2,7 @@ import { WelcomeContent } from "@/components/welcome-content"
 
 export default function WelcomePage() {
   return (
-    <main className="relative mx-auto min-h-dvh w-full max-w-[390px] overflow-hidden bg-background">
+    <main className="relative mx-auto min-h-dvh w-full max-w-[425px] overflow-hidden bg-background">
       {/* Decorative background elements */}
       <div
         className="pointer-events-none absolute inset-0"
